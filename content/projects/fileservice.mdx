@@ -1,0 +1,55 @@
+---
+title: fileservice
+slug: fileservice
+summary: Storage-agnostic object storage library for Go — one interface, multiple backends (memory, S3-compatible).
+year: 2026
+tech: [Go, S3, AWS SDK, MinIO]
+repo: https://github.com/PS-safe/fileservice
+status: active
+destination: [portable, personal]
+featured: true
+order: 1
+---
+
+## Why this exists
+
+Every backend project I've worked on has eventually needed object storage — avatars, uploads, generated reports, exports. Each time it gets re-implemented as scattered S3 calls bolted into business code. `fileservice` is the library I want to drop into every new project so this layer is solved once, properly.
+
+## What it does
+
+Defines a single `Storage` interface and ships pluggable backends behind it:
+
+```go
+import (
+    fs "github.com/PS-safe/fileservice"
+    "github.com/PS-safe/fileservice/memory"
+)
+
+store := memory.New()
+obj, _ := store.Put(ctx, "avatar.png", reader, fs.PutOptions{
+    ContentType: "image/png",
+})
+```
+
+Operations: `Put`, `Get`, `Stat`, `Delete`, `PresignGet`, `PresignPut`.
+
+## Backends
+
+| Backend | Status | Use for |
+|---|---|---|
+| memory | Complete | tests, local dev |
+| s3 | Stub | AWS S3, Cloudflare R2, MinIO |
+
+## Design decisions worth noting
+
+- **Streaming, not bytes.** `Put` takes an `io.Reader`, `Get` returns an `io.ReadCloser`. Large files never have to fit in memory.
+- **Contract tests, not per-backend tests.** A single `RunContract(t, newStore)` function exercises every method; new backends just call it.
+- **Sentinel errors with `errors.Is`.** `ErrNotFound`, `ErrInvalidKey` — checked semantically, not by string matching.
+- **No global state.** Each backend is constructed explicitly with its config; library code is reentrant by default.
+
+## Roadmap
+
+- [ ] Wire up `aws-sdk-go-v2` in the S3 backend
+- [ ] Multipart upload support
+- [ ] Per-tenant key prefixing (SaaS multi-tenancy)
+- [ ] OpenTelemetry metrics
