@@ -1,0 +1,9 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "rewrites": [
+    {
+      "source": "/r/:slug",
+      "destination": "https://ps-safe-shortlink.fly.dev/r/:slug"
+    }
+  ]
+}

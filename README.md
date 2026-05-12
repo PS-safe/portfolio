@@ -42,6 +42,17 @@ Open http://localhost:3000.
    ```
 3. Body is plain MDX. Push to main; Vercel auto-deploys.
 
+## Environment variables
+
+The shortlink demo on `/projects/shortlink` proxies to a deployed Go service. Set these in Vercel → Project → Settings → Environment Variables:
+
+| Variable | Purpose |
+|---|---|
+| `SHORTLINK_API_URL` | Base URL of the Fly app, e.g. `https://ps-safe-shortlink.fly.dev` |
+| `SHORTLINK_ADMIN_TOKEN` | Bearer token (same value as Fly's `ADMIN_TOKEN`) |
+
+If either is missing, the "Try it" form returns 503 gracefully; everything else still works.
+
 ## Layout
 
 ```

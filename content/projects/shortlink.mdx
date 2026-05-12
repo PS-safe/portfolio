@@ -1,0 +1,65 @@
+---
+title: shortlink
+slug: shortlink
+summary: URL shortener with click tracking — Go library plus deployable HTTP server. Powers the /r/* short links on this site.
+year: 2026
+tech: [Go, Postgres, Fly.io, Vercel]
+repo: https://github.com/PS-safe/shortlink
+status: active
+destination: [portable, personal, showcase]
+featured: true
+order: 1
+---
+
+<TryShortenForm />
+
+## Why this exists
+
+Every side project I want to share eventually has long, ugly URLs. Hosted shorteners are easy but they own your data and disappear when they pivot. `shortlink` is the smallest thing I'd actually run myself — a single Go binary, one Postgres table, deployed in two commands.
+
+It also doubles as the engine behind `/r/*` links on this portfolio.
+
+## What it does
+
+Defines a single `Store` interface and ships pluggable backends:
+
+```go
+import (
+    sl "github.com/PS-safe/shortlink"
+    "github.com/PS-safe/shortlink/memory"
+)
+
+store := memory.New()
+link, _ := store.Create(ctx, "abc", "https://example.com")
+target, _ := store.Resolve(ctx, "abc") // increments click_count atomically
+```
+
+Endpoints (Bearer auth on writes; redirect is public):
+
+| Method | Path | Auth |
+|---|---|---|
+| `POST` | `/links` | Bearer |
+| `GET` | `/r/:slug` | — |
+| `GET` | `/links/:slug/stats` | Bearer |
+
+## Design decisions worth noting
+
+- **Click increment is part of the redirect query.** `UPDATE links SET click_count = click_count + 1 ... RETURNING target` — atomic, no race, no second round trip.
+- **Slugs come from `crypto/rand` with rejection sampling**, not `math/rand`. Uniformity and unpredictability for free.
+- **Contract tests, not per-backend tests.** A single `RunContract` function exercises every method; new backends just call it.
+- **Bearer auth uses `subtle.ConstantTimeCompare`.** Tiny but real timing-attack mitigation that's easy to skip and impossible to add back retroactively.
+- **No global state.** Each backend is constructed explicitly; library is reentrant.
+
+## How this connects to the portfolio
+
+- The Go service is deployed on Fly.io (Singapore region).
+- Postgres lives on Neon's free tier.
+- `vercel.json` rewrites `/r/:slug` on this domain to the Fly service, so every short URL points back to the portfolio domain.
+- The "Try it" form above proxies through a Next.js Route Handler that holds the admin token server-side — no public credentials in the browser.
+
+## Roadmap
+
+- [ ] Custom slugs in the public-facing form (admin only currently)
+- [ ] Expiry / TTL per link
+- [ ] Per-click metadata (referrer, UA, country) into a separate `clicks` table
+- [ ] Simple admin dashboard for browsing recent links
