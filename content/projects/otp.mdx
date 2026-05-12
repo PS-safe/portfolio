@@ -1,0 +1,57 @@
+---
+title: otp
+slug: otp
+summary: Email-based one-time-password flow — request, verify, expire. Built as a portfolio demo, designed so the patterns transfer into real auth systems.
+year: 2026
+tech: [TypeScript, Next.js, Postgres, Neon, Brevo]
+status: active
+destination: [showcase]
+featured: true
+order: 2
+---
+
+<TryOtpForm />
+
+## Why this exists
+
+OTP looks trivial until you build one. The interesting parts aren't "generate 6 digits and send an email" — they're the boring details: expiry, attempt limits, rate limiting, constant-time compare, anti-enumeration, what to do when a code is "used" but the user requests another. This is a demo, but the patterns are the ones you'd port straight into a real auth system.
+
+Built entirely inside the portfolio (no separate service). Email delivery via Brevo's free tier.
+
+## What it does
+
+```
+POST /api/otp/request  → email validated, code generated, hashed, stored, emailed
+POST /api/otp/verify   → finds latest active code for email, increments attempts,
+                         constant-time hash compare, locks at 5 attempts
+```
+
+Codes are 6 digits, expire in **10 minutes**, max **5 verify attempts** per code, max **3 requests per email per 10 minutes**.
+
+## Design decisions worth noting
+
+- **Hash, don't store plaintext codes.** Even short-lived 6-digit codes shouldn't sit readable in the database. SHA-256 is sufficient here (codes expire fast, attempts are capped) — bcrypt would just slow verification with no real attacker upside.
+- **Constant-time comparison on verify.** Uses Node's `timingSafeEqual` on equal-length buffers. Timing attacks on a 6-digit space aren't realistic, but it's the kind of habit that matters when the secret space grows.
+- **CSPRNG with rejection sampling for code generation.** `crypto.getRandomValues` plus a rejection step so 0–9 are uniformly distributed. The naive `byte % 10` quietly biases toward digits 0–5.
+- **Attempt bump is part of the verify UPDATE.** `UPDATE … SET attempts = attempts + 1, used_at = CASE WHEN attempts + 1 >= 5 THEN now() ELSE used_at END RETURNING …` — no race condition where 6 concurrent guesses each see "attempts: 4" and continue.
+- **Rate limit lives at the boundary, not in app code.** A `count(*)` over the last 10 minutes lets the database enforce throttling without needing Redis or in-process state.
+- **No leakage of "email exists" via timing or status code.** Always returns the same shape whether the email is brand-new or has prior records.
+
+## What's deliberately NOT here
+
+This is `destination: showcase` — not a portable library, not `destination: portable`. A real auth-grade OTP service would want:
+
+- Per-IP rate limiting in addition to per-email
+- Anti-enumeration: respond identically whether or not we'd actually send (mailbox bounces leak existence)
+- Pluggable channels (Email + SMS + WhatsApp), abstracted behind a delivery interface
+- Audit logging on every request and verify
+- A separate `otp_events` table for forensics
+
+When the day comes that I need OTP for real auth in a future project, the `lib/otp.ts` and `lib/email.ts` code here is the starting point — but the production version belongs in its own repo, not lifted from a portfolio demo.
+
+## Roadmap
+
+- [ ] Per-IP rate limiting
+- [ ] SMS channel (Twilio once paid account is available)
+- [ ] Anti-enumeration timing equalization
+- [ ] Magic-link mode (email a one-time URL instead of a code)

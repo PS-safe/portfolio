@@ -46,13 +46,31 @@ Open http://localhost:3000.
 
 The shortlink demo on `/projects/shortlink` reads and writes directly to Neon Postgres. Set this in Vercel → Project → Settings → Environment Variables:
 
-| Variable | Purpose |
-|---|---|
-| `DATABASE_URL` | Neon Postgres pooled DSN, e.g. `postgres://user:pass@…neon.tech/db?sslmode=require` |
+| Variable | Used by | Purpose |
+|---|---|---|
+| `DATABASE_URL` | shortlink, otp | Neon Postgres pooled DSN, e.g. `postgres://user:pass@…neon.tech/db?sslmode=require` |
+| `BREVO_API_KEY` | otp | Brevo (free 300/day) API key for sending verification emails |
+| `OTP_FROM_EMAIL` | otp | Verified sender email in Brevo (e.g. your Gmail) |
+| `OTP_FROM_NAME` | otp | Display name on the From: header |
 
-If unset, the "Try it" form returns 503 gracefully; everything else still works.
+If a var is missing, the related "Try it" form returns 503 gracefully; everything else still works.
 
-Schema is in `PS-safe/shortlink/migrations/001_init.sql` (single `links` table). Run it once against your Neon database via the Neon SQL Editor.
+Schemas:
+- `links` table — `PS-safe/shortlink/migrations/001_init.sql`
+- `otps` table — see below (apply once in Neon SQL Editor):
+
+```sql
+CREATE TABLE IF NOT EXISTS otps (
+    id            BIGSERIAL   PRIMARY KEY,
+    email         TEXT        NOT NULL,
+    code_hash     TEXT        NOT NULL,
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+    expires_at    TIMESTAMPTZ NOT NULL,
+    used_at       TIMESTAMPTZ,
+    attempts      INT         NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_otps_email_created ON otps (email, created_at DESC);
+```
 
 ## Layout
 
