@@ -44,14 +44,15 @@ Open http://localhost:3000.
 
 ## Environment variables
 
-The shortlink demo on `/projects/shortlink` proxies to a deployed Go service. Set these in Vercel → Project → Settings → Environment Variables:
+The shortlink demo on `/projects/shortlink` reads and writes directly to Neon Postgres. Set this in Vercel → Project → Settings → Environment Variables:
 
 | Variable | Purpose |
 |---|---|
-| `SHORTLINK_API_URL` | Base URL of the Fly app, e.g. `https://ps-safe-shortlink.fly.dev` |
-| `SHORTLINK_ADMIN_TOKEN` | Bearer token (same value as Fly's `ADMIN_TOKEN`) |
+| `DATABASE_URL` | Neon Postgres pooled DSN, e.g. `postgres://user:pass@…neon.tech/db?sslmode=require` |
 
-If either is missing, the "Try it" form returns 503 gracefully; everything else still works.
+If unset, the "Try it" form returns 503 gracefully; everything else still works.
+
+Schema is in `PS-safe/shortlink/migrations/001_init.sql` (single `links` table). Run it once against your Neon database via the Neon SQL Editor.
 
 ## Layout
 

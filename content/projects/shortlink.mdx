@@ -1,9 +1,9 @@
 ---
 title: shortlink
 slug: shortlink
-summary: URL shortener with click tracking — Go library plus deployable HTTP server. Powers the /r/* short links on this site.
+summary: URL shortener with click tracking. Go library plus a TypeScript port that powers the live /r/* links on this site.
 year: 2026
-tech: [Go, Postgres, Fly.io, Vercel]
+tech: [Go, TypeScript, Postgres, Neon, Vercel]
 repo: https://github.com/PS-safe/shortlink
 status: active
 destination: [portable, personal, showcase]
@@ -15,13 +15,13 @@ order: 1
 
 ## Why this exists
 
-Every side project I want to share eventually has long, ugly URLs. Hosted shorteners are easy but they own your data and disappear when they pivot. `shortlink` is the smallest thing I'd actually run myself — a single Go binary, one Postgres table, deployed in two commands.
+Every side project I want to share eventually has long, ugly URLs. Hosted shorteners are easy but they own your data and disappear when they pivot. `shortlink` is the smallest thing I'd actually run myself — one table, one binary or one route handler, deployed in two commands.
 
-It also doubles as the engine behind `/r/*` links on this portfolio.
+It also powers the `/r/*` redirects on this portfolio.
 
-## What it does
+## Two implementations, on purpose
 
-Defines a single `Store` interface and ships pluggable backends:
+The repo at [`PS-safe/shortlink`](https://github.com/PS-safe/shortlink) is the **canonical reference** — a Go library plus a runnable HTTP server, with `memory` and `postgres` backends behind a single `Store` interface:
 
 ```go
 import (
@@ -31,35 +31,29 @@ import (
 
 store := memory.New()
 link, _ := store.Create(ctx, "abc", "https://example.com")
-target, _ := store.Resolve(ctx, "abc") // increments click_count atomically
+target, _ := store.Resolve(ctx, "abc") // atomic UPDATE … RETURNING target
 ```
 
-Endpoints (Bearer auth on writes; redirect is public):
+What's deployed on this site, though, is a **TypeScript port living inside the Next.js app** (`lib/shortlink.ts` + `/app/api/shorten` + `/app/r/[slug]`). It talks straight to Neon Postgres from a Vercel route handler.
 
-| Method | Path | Auth |
-|---|---|---|
-| `POST` | `/links` | Bearer |
-| `GET` | `/r/:slug` | — |
-| `GET` | `/links/:slug/stats` | Bearer |
+## Why two implementations isn't accidental
 
-## Design decisions worth noting
+The Go service is the artifact I want to carry between employers — a real library someone can import, deploy, and operate. That's the research-mode goal.
 
-- **Click increment is part of the redirect query.** `UPDATE links SET click_count = click_count + 1 ... RETURNING target` — atomic, no race, no second round trip.
-- **Slugs come from `crypto/rand` with rejection sampling**, not `math/rand`. Uniformity and unpredictability for free.
-- **Contract tests, not per-backend tests.** A single `RunContract` function exercises every method; new backends just call it.
-- **Bearer auth uses `subtle.ConstantTimeCompare`.** Tiny but real timing-attack mitigation that's easy to skip and impossible to add back retroactively.
-- **No global state.** Each backend is constructed explicitly; library is reentrant.
+The TS port is the right choice for this specific deployment target. Running a second service (on Fly, Render, Koyeb, etc.) just to serve a portfolio demo would mean: another platform account, cross-service auth, cold starts on two systems, and one more thing to monitor. Picking a smaller architecture when the constraints allow it is a senior judgment call, not a downgrade.
 
-## How this connects to the portfolio
+Both implementations share the same Postgres schema and the same data model. If I ever need the Go service to take over (more traffic, multi-tenant, separate scaling), the database is already speaking its language.
 
-- The Go service is deployed on Fly.io (Singapore region).
-- Postgres lives on Neon's free tier.
-- `vercel.json` rewrites `/r/:slug` on this domain to the Fly service, so every short URL points back to the portfolio domain.
-- The "Try it" form above proxies through a Next.js Route Handler that holds the admin token server-side — no public credentials in the browser.
+## Design decisions worth noting (apply to both ports)
+
+- **Click increment is part of the redirect query.** `UPDATE links SET click_count = click_count + 1 … RETURNING target` — atomic, no race, no second round trip.
+- **Slugs come from a CSPRNG with rejection sampling**, not modulo-skewed random bytes. Uniform and unpredictable by default — Go's `crypto/rand` on the server, `crypto.getRandomValues` in the TS port.
+- **Contract tests, not per-backend tests.** A single `RunContract` function in Go exercises every method; new backends just call it. The TS port shares the same data model so it's covered indirectly.
+- **Strict URL validation at the boundary.** Only http/https with a real host. Internal hostnames (`localhost`, `127.0.0.1`) rejected to avoid open-redirect / SSRF surprises.
 
 ## Roadmap
 
-- [ ] Custom slugs in the public-facing form (admin only currently)
+- [ ] Custom slug support exposed through the public form
 - [ ] Expiry / TTL per link
 - [ ] Per-click metadata (referrer, UA, country) into a separate `clicks` table
-- [ ] Simple admin dashboard for browsing recent links
+- [ ] Simple admin view for recent links + click counts

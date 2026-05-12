@@ -1,23 +1,11 @@
 import { NextResponse } from "next/server";
+import { createLink, validateTarget } from "@/lib/shortlink";
+import { isConfigured } from "@/lib/db";
 
 export const runtime = "nodejs";
 
-const ALLOWED_PROTOCOLS = new Set(["http:", "https:"]);
-
-function isValidUrl(raw: string): boolean {
-  try {
-    const u = new URL(raw);
-    return ALLOWED_PROTOCOLS.has(u.protocol) && !!u.host;
-  } catch {
-    return false;
-  }
-}
-
 export async function POST(req: Request) {
-  const apiUrl = process.env.SHORTLINK_API_URL;
-  const adminToken = process.env.SHORTLINK_ADMIN_TOKEN;
-
-  if (!apiUrl || !adminToken) {
+  if (!isConfigured()) {
     return NextResponse.json(
       { error: "Shortlink demo is not configured." },
       { status: 503 },
@@ -31,31 +19,19 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
   }
 
-  const target = body.target?.trim();
-  if (!target || !isValidUrl(target)) {
-    return NextResponse.json(
-      { error: "Provide a valid http(s) URL." },
-      { status: 400 },
-    );
+  const check = validateTarget(body.target?.trim() ?? "");
+  if (!check.ok) {
+    return NextResponse.json({ error: check.reason }, { status: 400 });
   }
 
-  const upstream = await fetch(`${apiUrl}/links`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${adminToken}`,
-    },
-    body: JSON.stringify({ target }),
-  });
-
-  if (!upstream.ok) {
-    const text = await upstream.text();
+  try {
+    const link = await createLink(check.url);
+    return NextResponse.json({ slug: link.slug, target: link.target });
+  } catch (err) {
+    console.error("createLink failed", err);
     return NextResponse.json(
-      { error: text || "Upstream error." },
-      { status: upstream.status },
+      { error: "Could not create shortlink. Try again." },
+      { status: 500 },
     );
   }
-
-  const data = (await upstream.json()) as { slug: string; target: string };
-  return NextResponse.json({ slug: data.slug, target: data.target });
 }
