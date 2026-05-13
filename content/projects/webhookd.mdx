@@ -1,0 +1,77 @@
+---
+title: webhookd
+slug: webhookd
+summary: A small webhook dispatcher with HMAC-signed delivery, durable retry, and a Postgres queue. Go library plus a synchronous TS demo on this site.
+year: 2026
+tech: [Go, TypeScript, Postgres, HMAC, "FOR UPDATE SKIP LOCKED"]
+repo: https://github.com/PS-safe/webhookd
+status: active
+destination: [portable, personal, showcase]
+featured: true
+order: 4
+---
+
+<TryWebhookForm />
+
+> **Try it tip.** Open [webhook.site](https://webhook.site) in another tab, copy your unique URL, paste it above, hit Dispatch. You'll see a real signed POST land in the inbox with `Webhook-Id`, `Webhook-Timestamp`, and `Webhook-Signature` headers. Verify the signature using the secret returned below.
+
+## Why this exists
+
+Webhooks are one of those features that look easy until you read about it. "POST when something happens" is the trivial 5% — the other 95% is what every Stripe/GitHub/Twilio integration eventually needs: signing so receivers know it's really you, atomic delivery dequeue so two workers don't process the same event, retry with backoff so a flapping receiver doesn't make the queue grow forever, replay so you can resend after a customer's outage.
+
+`webhookd` is the smallest version of that I'd actually drop into a backend.
+
+## What it does
+
+```go
+import (
+    wh "github.com/PS-safe/webhookd"
+    "github.com/PS-safe/webhookd/memory"
+    "github.com/PS-safe/webhookd/dispatcher"
+)
+
+store := memory.New()
+_ = store.RegisterEndpoint(ctx, wh.Endpoint{
+    ID: "ep1", URL: "https://customer.example.com/hook", Secret: "shh",
+})
+
+// Application side:
+ev := wh.Event{ID: "evt_42", Type: "order.created", Payload: orderJSON}
+_, _ = store.EnqueueDelivery(ctx, ev, ep)
+
+// Worker side:
+go dispatcher.New(store).Run(ctx)
+```
+
+Receivers verify with `sign.Verify(...)` — constant-time compare, freshness check included.
+
+## Two implementations, on purpose (again)
+
+The Go library at [`PS-safe/webhookd`](https://github.com/PS-safe/webhookd) is the canonical one:
+
+- **memory** and **postgres** backends behind one `Store` interface
+- Postgres queue uses `FOR UPDATE SKIP LOCKED` so multiple workers can run safely in parallel
+- Dispatcher loop: claim → sign → POST → record attempt → reschedule via retry policy or mark done
+- HMAC-SHA256 with Stripe-flavored headers: `Webhook-Id`, `Webhook-Timestamp`, `Webhook-Signature: v1=<hex>`
+- Decorrelated-jitter retry math (`retry.Default` is 5 attempts, ~1s → 16s with jitter)
+
+The demo above runs a **synchronous** TS port. Why not a real queue? Vercel serverless has no long-running workers — every request runs in isolation, then dies. Real async would need an external queue (Vercel Cron is too slow for a demo; QStash needs a new account). For a "click and see" demo, synchronous dispatch with 3 immediate retries and jittered backoff demonstrates the engineering without the infrastructure tax.
+
+## Design decisions worth noting
+
+- **Postgres queue, not Redis.** Two reasons: `FOR UPDATE SKIP LOCKED` is genuinely good at this, and Redis-as-a-queue forces you into another piece of infra. If you already have Postgres, you already have a queue.
+- **Signed payload includes id + timestamp + body**, in that order, joined by `.`. Receivers reconstruct exactly that and HMAC-verify. Order matters — appending the body raw without a separator means an attacker can shift bytes between fields.
+- **Constant-time signature compare.** `hmac.Equal` in Go; `crypto.timingSafeEqual` in Node. Timing attacks on HMAC outputs are mostly theoretical, but it's the kind of habit that matters when secrets get longer.
+- **Decorrelated jitter, not full jitter.** Decorrelated jitter (random in `[base, prev*mult]`) gives a better spread under load than full jitter (random in `[0, exponential]`) — important when you're retrying thousands of deliveries against the same downstream service.
+- **Delivery ID is deterministic from event + endpoint.** `dlv_<event_id>_<endpoint_id>` — receivers can use it for idempotency dedup keys without coordinating with you.
+- **Response body is truncated and stored** for forensics. 4096 bytes is enough for most error pages without filling up Postgres.
+- **SSRF defense at the demo boundary.** The TS port rejects `localhost`, `127.0.0.1`, `169.254.*`, RFC1918 ranges, and non-http(s) schemes before dispatching. A real production system would also resolve DNS and re-check the IP — that's noted in the roadmap.
+
+## Roadmap
+
+- [ ] Dockerfile + Fly/Render deploy config for the Go service
+- [ ] DNS-resolved SSRF guard (block dispatches that resolve to private IPs even if hostname is public)
+- [ ] Dead-letter queue with manual replay
+- [ ] Subscription filters (per-endpoint event-type allowlist)
+- [ ] OpenTelemetry traces on every attempt
+- [ ] testcontainers-go integration tests against real Postgres
