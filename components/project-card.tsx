@@ -13,7 +13,7 @@ export function ProjectCard({ project }: { project: Project }) {
   return (
     <Link
       href={`/projects/${project.slug}`}
-      className="group block rounded-lg border border-border bg-card p-5 transition-colors hover:border-accent"
+      className="project-card group block rounded-lg border border-border bg-card p-5"
     >
       <div className="flex items-start justify-between gap-3">
         <h3 className="text-base font-semibold text-card-foreground">

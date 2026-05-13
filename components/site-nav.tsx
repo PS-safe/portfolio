@@ -21,7 +21,7 @@ export function SiteNav() {
               <li key={l.href}>
                 <Link
                   href={l.href}
-                  className="transition-colors hover:text-foreground"
+                  className="nav-link hover:text-foreground"
                 >
                   {l.label}
                 </Link>

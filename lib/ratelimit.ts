@@ -73,6 +73,11 @@ export async function checkAndRecord(
 }
 
 export function ipFromHeaders(h: Headers): string {
+  // Vercel sets x-vercel-forwarded-for after stripping inbound copies — it
+  // cannot be spoofed by the client. Prefer it; fall back to XFF only when
+  // running outside Vercel (local dev, alternate hosting).
+  const vercel = h.get("x-vercel-forwarded-for");
+  if (vercel) return vercel.split(",")[0].trim();
   const xff = h.get("x-forwarded-for");
   if (xff) return xff.split(",")[0].trim();
   const real = h.get("x-real-ip");

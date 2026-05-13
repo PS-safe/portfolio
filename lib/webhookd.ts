@@ -1,33 +1,8 @@
 import { createHmac, randomBytes } from "node:crypto";
+import { validateExternalUrl, type UrlValidationResult } from "./url-validation";
 
-const ALLOWED_PROTOCOLS = new Set(["http:", "https:"]);
-const BLOCKED_HOSTNAMES = new Set([
-  "localhost",
-  "127.0.0.1",
-  "0.0.0.0",
-  "::1",
-]);
-const PRIVATE_NET = [
-  /^10\./,
-  /^192\.168\./,
-  /^172\.(1[6-9]|2[0-9]|3[0-1])\./,
-  /^169\.254\./,
-];
-
-export function validateTargetUrl(raw: string): { ok: true; url: string } | { ok: false; reason: string } {
-  if (!raw || raw.length > 2048) return { ok: false, reason: "Provide a URL (max 2048 chars)." };
-  let u: URL;
-  try {
-    u = new URL(raw);
-  } catch {
-    return { ok: false, reason: "Not a valid URL." };
-  }
-  if (!ALLOWED_PROTOCOLS.has(u.protocol)) return { ok: false, reason: "Only http and https are allowed." };
-  if (!u.host) return { ok: false, reason: "URL is missing a host." };
-  const host = u.hostname.toLowerCase();
-  if (BLOCKED_HOSTNAMES.has(host)) return { ok: false, reason: "Internal hosts are not allowed." };
-  if (PRIVATE_NET.some((re) => re.test(host))) return { ok: false, reason: "Private network targets are not allowed." };
-  return { ok: true, url: u.toString() };
+export function validateTargetUrl(raw: string): UrlValidationResult {
+  return validateExternalUrl(raw);
 }
 
 export function newSecret(): string {
@@ -124,6 +99,9 @@ export async function dispatch(
       const res = await fetch(targetUrl, {
         method: "POST",
         signal: ac.signal,
+        // Never follow redirects: a public hostname that 3xx's to an internal
+        // IP would otherwise sidestep the validateExternalUrl check.
+        redirect: "manual",
         headers: {
           "Content-Type": "application/json",
           "User-Agent": "webhookd/0.1 (portfolio-demo)",

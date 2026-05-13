@@ -1,4 +1,5 @@
 import { sql } from "./db";
+import { validateExternalUrl, type UrlValidationResult } from "./url-validation";
 
 const ALPHABET =
   "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
@@ -22,34 +23,8 @@ export function generateSlug(n: number = SLUG_LEN): string {
   return out.join("");
 }
 
-const ALLOWED_PROTOCOLS = new Set(["http:", "https:"]);
-const BLOCKED_HOSTS = new Set([
-  "localhost",
-  "127.0.0.1",
-  "0.0.0.0",
-  "::1",
-]);
-
-export function validateTarget(raw: string): { ok: true; url: string } | { ok: false; reason: string } {
-  if (!raw || raw.length > 2048) {
-    return { ok: false, reason: "Provide a URL (max 2048 chars)." };
-  }
-  let u: URL;
-  try {
-    u = new URL(raw);
-  } catch {
-    return { ok: false, reason: "Not a valid URL." };
-  }
-  if (!ALLOWED_PROTOCOLS.has(u.protocol)) {
-    return { ok: false, reason: "Only http and https URLs are allowed." };
-  }
-  if (!u.host) {
-    return { ok: false, reason: "URL is missing a host." };
-  }
-  if (BLOCKED_HOSTS.has(u.hostname.toLowerCase())) {
-    return { ok: false, reason: "Internal hosts are not allowed." };
-  }
-  return { ok: true, url: u.toString() };
+export function validateTarget(raw: string): UrlValidationResult {
+  return validateExternalUrl(raw);
 }
 
 export type Link = {

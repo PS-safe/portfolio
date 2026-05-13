@@ -13,6 +13,23 @@ order: 3
 
 <TryRateLimitForm />
 
+## How it works
+
+<Mermaid
+  caption="Ratelimit — sliding window check + record"
+  chart={`flowchart LR
+    V[Visitor click] -->|POST /api/ratelimit/ping| API[Ping route]
+    API -->|ipFromHeaders| Lib[lib/ratelimit.ts]
+    Lib -->|COUNT...WHERE created_at > now() - 10s| DB[(rate_limit_events)]
+    Lib -->|under limit?| Decide{count < 5?}
+    Decide -->|yes| Insert[INSERT new event]
+    Insert --> DB
+    Decide -->|yes| OK[200 with X-RateLimit-*]
+    Decide -->|no| Reject[429 with Retry-After]
+    OK --> V
+    Reject --> V
+`} />
+
 ## Why this exists
 
 Every backend I've ever written has needed a rate limiter. Every one of them implemented it differently — middleware function inline in a handler, a chunk of Redis Lua copy-pasted from Stack Overflow, an in-memory map with a `sync.Mutex` someone forgot to lock. None of them were portable.

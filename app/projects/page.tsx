@@ -26,8 +26,14 @@ export default async function ProjectsPage() {
         </p>
       </header>
       <div className="mt-10 grid gap-4 sm:grid-cols-2">
-        {projects.map((p) => (
-          <ProjectCard key={p.slug} project={p} />
+        {projects.map((p, i) => (
+          <div
+            key={p.slug}
+            className="reveal"
+            style={{ ["--reveal-delay" as never]: `${i * 50}ms` }}
+          >
+            <ProjectCard project={p} />
+          </div>
         ))}
       </div>
     </div>

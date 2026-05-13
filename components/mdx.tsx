@@ -4,12 +4,14 @@ import { TryShortenForm } from "./try-shorten-form";
 import { TryOtpForm } from "./try-otp-form";
 import { TryRateLimitForm } from "./try-ratelimit-form";
 import { TryWebhookForm } from "./try-webhook-form";
+import { Mermaid } from "./mermaid";
 
 const components: MDXRemoteProps["components"] = {
   TryShortenForm,
   TryOtpForm,
   TryRateLimitForm,
   TryWebhookForm,
+  Mermaid,
   h1: (p: ComponentPropsWithoutRef<"h1">) => (
     <h1 className="mt-8 mb-4 text-3xl font-bold tracking-tight text-foreground" {...p} />
   ),

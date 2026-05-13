@@ -35,7 +35,11 @@ async function brevoSend(p: BrevoSendParams): Promise<void> {
 
   if (!res.ok) {
     const body = await res.text();
-    throw new Error(`Brevo send failed (${res.status}): ${body}`);
+    // Log the upstream body server-side for forensics; never propagate it.
+    // Brevo error bodies have included API key fragments and account IDs in
+    // the past — sanitize before throwing.
+    console.error("brevo upstream error", { status: res.status, body });
+    throw new Error(`Brevo send failed with status ${res.status}`);
   }
 }
 

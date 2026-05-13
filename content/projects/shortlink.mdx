@@ -13,6 +13,20 @@ order: 1
 
 <TryShortenForm />
 
+## How it works
+
+<Mermaid
+  caption="Shortlink — create + redirect"
+  chart={`flowchart LR
+    V[Visitor] -->|POST /api/shorten| API[Next.js route]
+    API -->|validate URL| URL[lib/url-validation]
+    API -->|rate limit| RL[(rate_limit_events)]
+    API -->|INSERT slug + target| L[(links table)]
+    V2[Visitor clicks] -->|GET /r/slug| R[Redirect handler]
+    R -->|UPDATE...RETURNING target<br/>atomic click++| L
+    R -->|302| T[Target URL]
+`} />
+
 ## Why this exists
 
 Every side project I want to share eventually has long, ugly URLs. Hosted shorteners are easy but they own your data and disappear when they pivot. `shortlink` is the smallest thing I'd actually run myself — one table, one binary or one route handler, deployed in two commands.

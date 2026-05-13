@@ -15,6 +15,36 @@ order: 4
 
 > **Try it tip.** Open [webhook.site](https://webhook.site) in another tab, copy your unique URL, paste it above, hit Dispatch. You'll see a real signed POST land in the inbox with `Webhook-Id`, `Webhook-Timestamp`, and `Webhook-Signature` headers. Verify the signature using the secret returned below.
 
+## How it works (deployed TS demo)
+
+<Mermaid
+  caption="webhookd — synchronous dispatch with retries"
+  chart={`flowchart LR
+    V[Visitor] -->|target URL + payload| API[Send route]
+    API -->|rate limit demo:webhookd| RL[(rate_limit_events)]
+    API -->|validateExternalUrl| URL[lib/url-validation]
+    API -->|sign HMAC-SHA256| S[lib/webhookd:sign]
+    S -->|attempt 1| T[Target URL]
+    T -.->|fail| API
+    API -->|backoff + jitter| S
+    S -->|attempt 2| T
+    T -.->|2xx| API
+    API -->|attempts log + secret| V
+`} />
+
+## Canonical Go architecture
+
+<Mermaid
+  caption="webhookd Go service — async durable delivery"
+  chart={`flowchart LR
+    App[Application] -->|EnqueueDelivery| DB[(Postgres<br/>deliveries)]
+    Worker[Dispatcher worker] -->|FOR UPDATE SKIP LOCKED| DB
+    Worker -->|sign + POST| Customer[Customer endpoint]
+    Customer -.->|2xx| Worker
+    Worker -->|RecordAttempt<br/>+ schedule next| DB
+    Worker -->|decorrelated jitter retry| Worker
+`} />
+
 ## Why this exists
 
 Webhooks are one of those features that look easy until you read about it. "POST when something happens" is the trivial 5% — the other 95% is what every Stripe/GitHub/Twilio integration eventually needs: signing so receivers know it's really you, atomic delivery dequeue so two workers don't process the same event, retry with backoff so a flapping receiver doesn't make the queue grow forever, replay so you can resend after a customer's outage.

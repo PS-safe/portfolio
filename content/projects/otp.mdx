@@ -12,6 +12,22 @@ order: 2
 
 <TryOtpForm />
 
+## How it works
+
+<Mermaid
+  caption="OTP — request + verify"
+  chart={`flowchart LR
+    V[Visitor] -->|POST /api/otp/request<br/>email| Req[Request route]
+    Req -->|IP rate limit| RL[(rate_limit_events)]
+    Req -->|email rate limit + INSERT<br/>SHA-256 hashed code| O[(otps table)]
+    Req -->|send code| B[Brevo API]
+    B -->|email| I[Inbox]
+    V2[Visitor reads code] -->|POST /api/otp/verify| Ver[Verify route]
+    Ver -->|SELECT latest active| O
+    Ver -->|atomic UPDATE attempts++<br/>timing-safe compare| O
+    Ver -->|verified| V2
+`} />
+
 ## Why this exists
 
 OTP looks trivial until you build one. The interesting parts aren't "generate 6 digits and send an email" — they're the boring details: expiry, attempt limits, rate limiting, constant-time compare, anti-enumeration, what to do when a code is "used" but the user requests another. This is a demo, but the patterns are the ones you'd port straight into a real auth system.
