@@ -55,9 +55,22 @@ The shortlink demo on `/projects/shortlink` reads and writes directly to Neon Po
 
 If a var is missing, the related "Try it" form returns 503 gracefully; everything else still works.
 
-Schemas:
-- `links` table — `PS-safe/shortlink/migrations/001_init.sql`
-- `otps` table — see below (apply once in Neon SQL Editor):
+Schemas (apply each in Neon SQL Editor once):
+
+`links` (shortlink):
+
+```sql
+CREATE TABLE IF NOT EXISTS links (
+    slug             TEXT        PRIMARY KEY,
+    target           TEXT        NOT NULL,
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+    click_count      BIGINT      NOT NULL DEFAULT 0,
+    last_clicked_at  TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS idx_links_created_at ON links (created_at DESC);
+```
+
+`otps`:
 
 ```sql
 CREATE TABLE IF NOT EXISTS otps (
@@ -70,6 +83,19 @@ CREATE TABLE IF NOT EXISTS otps (
     attempts      INT         NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_otps_email_created ON otps (email, created_at DESC);
+```
+
+`rate_limit_events` (ratelimit demo):
+
+```sql
+CREATE TABLE IF NOT EXISTS rate_limit_events (
+    id          BIGSERIAL   PRIMARY KEY,
+    key         TEXT        NOT NULL,
+    scope       TEXT        NOT NULL,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_rl_key_scope_created
+  ON rate_limit_events (key, scope, created_at DESC);
 ```
 
 ## Layout

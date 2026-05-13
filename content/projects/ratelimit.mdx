@@ -1,0 +1,68 @@
+---
+title: ratelimit
+slug: ratelimit
+summary: Sliding-window rate limiter for Go. One interface, multiple backends (memory + Redis), plus net/http middleware that just works.
+year: 2026
+tech: [Go, TypeScript, Postgres, Neon, net/http]
+repo: https://github.com/PS-safe/ratelimit
+status: active
+destination: [portable, personal, showcase]
+featured: true
+order: 3
+---
+
+<TryRateLimitForm />
+
+## Why this exists
+
+Every backend I've ever written has needed a rate limiter. Every one of them implemented it differently — middleware function inline in a handler, a chunk of Redis Lua copy-pasted from Stack Overflow, an in-memory map with a `sync.Mutex` someone forgot to lock. None of them were portable.
+
+`ratelimit` is the smallest version of this that I'd actually drop into the next backend I build. One `import`, one wrapper around the mux, and every endpoint behind it has correct `X-RateLimit-*` headers and 429 + `Retry-After` on rejection.
+
+## What it does
+
+```go
+import (
+    "github.com/PS-safe/ratelimit"
+    "github.com/PS-safe/ratelimit/memory"
+    "github.com/PS-safe/ratelimit/middleware"
+)
+
+limiter, _ := memory.New(ratelimit.Config{
+    Limit:  100,
+    Window: time.Minute,
+})
+
+mux := http.NewServeMux()
+mux.HandleFunc("/api/things", thingsHandler)
+
+http.ListenAndServe(":8080", middleware.Middleware(limiter)(mux))
+```
+
+That's the whole API surface for the common case.
+
+## Two implementations, on purpose (again)
+
+The Go library at [`PS-safe/ratelimit`](https://github.com/PS-safe/ratelimit) is the canonical artifact:
+- `memory/` backend — complete, contract-tested, single-instance
+- `redis/` backend — sorted-set + atomic Lua script for distributed use (skeleton in v0; plug in any Redis driver via the `Client` interface)
+- `middleware/` — net/http adapter with `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`, `Retry-After`
+
+The live demo above runs a TypeScript port (`lib/ratelimit.ts`) that hits Neon Postgres — same sliding-window algorithm, different storage. The Go library is what I'd carry to a future job; the TS port is what makes the demo work on Vercel without standing up a second service.
+
+## Design decisions worth noting
+
+- **Sliding window over fixed window.** Fixed-window limits permit double-the-limit bursts at window boundaries (last second of window 1 + first second of window 2). Sliding window doesn't.
+- **Atomic check-and-record.** In memory: single mutex-guarded "prune older, count, conditionally append" sequence. In Redis: one Lua script. In Postgres: count + insert in one round trip. Race conditions in rate limiters are the kind of bug that only shows up under the load you wrote the limiter to handle.
+- **Injectable clock for tests.** `Limiter.SetNow(func() time.Time)` lets the contract test suite simulate the passage of time without `time.Sleep` — fast, deterministic, no flakes.
+- **`Result.ResetAt` is the oldest hit's expiry, not "limit window from now."** Tells the client exactly when capacity returns instead of "wait roughly this long."
+- **`IPKey` reads `X-Forwarded-For` first, then `RemoteAddr`.** Trust XFF only behind a proxy that strips inbound headers — documented in the README so the trap doesn't bite a future caller.
+- **Memory backend stores timestamps, not counters.** Counters force you to know the algorithm at write time; timestamps let any algorithm (sliding window, fixed window, leaky bucket-ish) read the same data.
+
+## Roadmap
+
+- [ ] Token bucket as a sibling algorithm (`Limiter` interface stays; `tokenbucket/` package adds it)
+- [ ] Per-route limit composition (`{global: 1000/min, per-user: 100/min}` chained)
+- [ ] Redis backend integration tests against `testcontainers-go`
+- [ ] OpenTelemetry instrumentation on every `Allow` call
+- [ ] Generic-typed key (currently `string`; sometimes you want `int64` user IDs without `strconv` everywhere)
