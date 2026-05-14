@@ -65,7 +65,17 @@ const components: MDXRemoteProps["components"] = {
 export function Mdx({ source }: { source: string }) {
   return (
     <div className="font-sans">
-      <MDXRemote source={source} components={components} />
+      {/*
+        blockJS:false — next-mdx-remote v6 strips ALL `{...}` expressions by
+        default (untrusted-content guard), which silently drops component
+        props like <Mermaid chart={...} />. Our MDX is first-party in-repo
+        content, so JS expressions are trusted; blockDangerousJS stays on.
+      */}
+      <MDXRemote
+        source={source}
+        components={components}
+        options={{ blockJS: false }}
+      />
     </div>
   );
 }

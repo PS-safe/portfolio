@@ -15,7 +15,9 @@ type Props = {
  * flips so the diagram color scheme follows the page.
  */
 export function Mermaid({ chart, caption }: Props) {
-  const id = useId().replace(/:/g, "");
+  // mermaid uses this as a DOM id and a CSS selector; useId() is not
+  // guaranteed to be selector-safe, so strip everything but [a-zA-Z0-9].
+  const id = useId().replace(/[^a-zA-Z0-9]/g, "");
   const containerRef = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
   const { resolvedTheme } = useTheme();
