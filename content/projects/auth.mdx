@@ -1,0 +1,108 @@
+---
+title: auth
+slug: auth
+summary: Drop-into-anything email/password auth library for Go — argon2id passwords, opaque session tokens, pluggable Store, RBAC middleware.
+year: 2026
+tech: [Go, Postgres, argon2id, net/http]
+repo: https://github.com/PS-safe/auth
+status: active
+destination: [portable, personal, showcase]
+featured: true
+order: 5
+---
+
+## How it works
+
+<Mermaid
+  caption="auth — signup / login / protected route"
+  chart={`flowchart LR
+    C[Client] -->|POST /signup<br/>email + password| API[Next-style mux]
+    API -->|argon2id hash| P[password.Hash]
+    API -->|CreateUser| S[(Store: memory or Postgres)]
+    API -->|session.Generate<br/>store sha256 only| S
+    API -->|Set-Cookie auth_session<br/>HttpOnly Secure| C
+
+    C2[Client] -->|GET /me<br/>cookie or Bearer| MW[middleware.RequireSession]
+    MW -->|sha256 token| Q[SessionByTokenHash<br/>JOIN users in 1 RT]
+    Q --> S
+    Q -->|user + session| Ctx[request context]
+    Ctx --> H[handler]
+
+    H2[admin handler] -->|wrap| RP[RequirePermission users:read]
+    RP -->|rbac.Has role,perm| Allow{granted?}
+    Allow -->|yes| H2
+    Allow -->|no| F[403]
+`} />
+
+## Why this exists
+
+Every backend I build needs login. The choices are usually: roll something custom and get the security details wrong, pull in a heavy framework like Auth0/Clerk and surrender ownership of users, or copy-paste a snippet from a tutorial that omits the parts that matter (constant-time compare, hash-not-store on tokens, generic 401s to defeat enumeration).
+
+`auth` is the smallest version of email/password I'd actually drop into a new Go service. One `Store` interface, one `argon2id` hasher, one `RequireSession` middleware. Memory backend for tests and dev; Postgres for production. No SaaS lock-in.
+
+## What it does
+
+```go
+import (
+    a "github.com/PS-safe/auth"
+    "github.com/PS-safe/auth/memory"
+    "github.com/PS-safe/auth/password"
+    "github.com/PS-safe/auth/session"
+    "github.com/PS-safe/auth/middleware"
+    "github.com/PS-safe/auth/rbac"
+)
+
+store := memory.New()
+
+// Signup
+hash, _ := password.Hash("hunter2")
+user, _ := store.CreateUser(ctx, a.User{
+    ID: "usr_1", Email: "a@b.com", PasswordHash: hash, Role: "user",
+})
+
+// Session
+tok, _ := session.Generate()
+_ = store.CreateSession(ctx, a.Session{
+    TokenHash: session.Hash(tok),
+    UserID:    user.ID,
+    ExpiresAt: time.Now().Add(7 * 24 * time.Hour),
+})
+// Return `tok` to the client (cookie or Bearer); only sha256(tok) lives in the DB.
+
+// Protect routes
+mux := http.NewServeMux()
+mux.Handle("GET /me", middleware.RequireSession(store)(http.HandlerFunc(meHandler)))
+mux.Handle("GET /admin", middleware.RequireSession(store)(
+    middleware.RequirePermission(rbac.PermReadAdmin)(http.HandlerFunc(adminHandler)),
+))
+```
+
+`cmd/server` wires this into a runnable HTTP API: `POST /signup`, `POST /login`, `POST /logout`, `GET /me`, `GET /admin/users`, `GET /healthz`. Cookies are `HttpOnly`, `Secure`, `SameSite=Lax` by default.
+
+## Design decisions worth noting
+
+- **argon2id, not bcrypt.** Memory-hard, parallel-resistant, the current OWASP recommendation for new systems. bcrypt is fine but maxes out at 72 bytes of input and isn't memory-hard — argon2id is the safer default in 2026.
+- **Opaque session tokens, not JWT.** Server generates 32 bytes of CSPRNG output, returns the raw token to the client exactly once, stores only `sha256(token)`. A full DB dump can't be replayed as live sessions. Revocation is a single `DELETE`. JWT's "stateless" advantage evaporates the moment you need a deny-list, which is the moment a real user reports a stolen device.
+- **Constant-time password compare.** `crypto/subtle.ConstantTimeCompare` under the hood in `password.Verify`. Mostly theoretical against a remote attacker but it's the kind of habit that costs nothing.
+- **Single round trip for session lookup.** `SessionByTokenHash` is one `JOIN` against `sessions` and `users` — middleware doesn't make N+1 calls per request. The Postgres query is the same shape as the memory one's logic, so the contract test catches divergence.
+- **Generic 401 on bad credentials.** `/login` returns the same error string for "no such user" and "wrong password" — the response body and status are identical. Otherwise an attacker can enumerate which emails are registered.
+- **`SameSite=Lax`, not `Strict`.** Strict breaks the common case of clicking a link from email or external sites and landing on the dashboard already logged in. Lax is the right default for first-party apps; CSRF tokens cover the residual mutation risk.
+- **RBAC is a static map, not a policy engine.** `rolePerms` is 12 lines of Go and obvious at a glance. Real production RBAC eventually needs dynamic roles and per-resource permissions, but most internal apps never get there — and a static map is easy to extend when they do.
+- **Store interface + contract tests, not per-backend tests.** A single `RunContract(t, newStore)` exercises every method against every backend. The memory backend currently runs it; adding Postgres just means pointing it at a `testcontainers-go`-spun-up DB.
+
+## Why no live demo (yet)
+
+The other research artifacts on this site (shortlink, ratelimit, webhookd, otp) all have an in-portfolio TypeScript port talking to Neon — the [pattern that became standard](/projects/webhookd) once Vercel's lack of long-running workers made deploying a separate service infeasible.
+
+Auth is bigger. A "try it" widget would need a working signup form, a separate `users` table on Neon, session cookies scoped correctly across `/projects/auth`, and a meaningful threat model for a public demo (rate limiting, abuse, captcha, garbage data cleanup). That's its own iteration. v0 ships the Go library and the documentation; the live demo is a deliberate next step, not a missing one.
+
+## Roadmap
+
+- [ ] Refresh tokens (long-lived opaque) on top of short-lived access tokens
+- [ ] Email verification on signup (reuse the [otp](/projects/otp) flow)
+- [ ] Password reset flow (one-time tokens, expiry, single-use)
+- [ ] Rate limiting on `/login` / `/signup` (drop-in via [ratelimit](/projects/ratelimit) middleware)
+- [ ] OAuth providers (Google, GitHub) behind a uniform interface
+- [ ] WebAuthn / passkeys
+- [ ] testcontainers-go integration tests against real Postgres
+- [ ] Live demo on this portfolio (TS port + Neon, gated behind rate limit + cleanup job)
