@@ -75,9 +75,11 @@ export const CATEGORY_BLURB: Record<Category, string> = {
   project: "Full applications and portfolio features.",
 };
 
-/** groupByCategory returns projects bucketed by category, preserving the
- * existing per-project order inside each bucket. Items with no category
- * land in "project" by default — a safe catch-all. */
+/** groupByCategory returns projects bucketed by category. Each bucket gets
+ * its own sort rule, chosen to match the reader's expectation for that
+ * bucket — libraries are "chronological-shipped, oldest first" so the
+ * lineage of how the toolkit grew reads left-to-right; projects are
+ * "newest year first" so the most recent work is what catches the eye. */
 export function groupByCategory(projects: Project[]): Record<Category, Project[]> {
   const out: Record<Category, Project[]> = {
     library: [],
@@ -87,5 +89,9 @@ export function groupByCategory(projects: Project[]): Record<Category, Project[]
     const cat = p.category ?? "project";
     out[cat].push(p);
   }
+  out.library.sort((a, b) => (a.order ?? Infinity) - (b.order ?? Infinity));
+  out.project.sort(
+    (a, b) => b.year - a.year || (a.order ?? Infinity) - (b.order ?? Infinity),
+  );
   return out;
 }
