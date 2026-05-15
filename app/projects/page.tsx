@@ -32,8 +32,7 @@ export default async function ProjectsPage() {
           </h1>
         </HeroSpotlight>
         <p className="mt-3 max-w-2xl text-base text-muted-foreground">
-          Grouped by shape: importable Go libraries, service-shaped features,
-          and full applications.
+          Grouped by shape: importable Go libraries and full applications.
         </p>
       </header>
 

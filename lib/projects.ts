@@ -4,7 +4,7 @@ import matter from "gray-matter";
 
 export type Status = "active" | "stable" | "experimental" | "archived";
 export type Destination = "portable" | "personal" | "showcase";
-export type Category = "library" | "microservice" | "project";
+export type Category = "library" | "project";
 
 export type ProjectFrontmatter = {
   title: string;
@@ -58,22 +58,21 @@ export async function getFeaturedProjects(): Promise<Project[]> {
   return all.filter((p) => p.featured);
 }
 
-/** Order categories appear in on /projects (libraries first — they're the
- * carry-anywhere artifacts; microservices and projects follow). */
-export const CATEGORY_ORDER: Category[] = ["library", "microservice", "project"];
+/** Order categories appear in on /projects. Libraries first — they're the
+ * carry-anywhere artifacts; projects follow. A "microservice" category will
+ * come back if and when there's a real independently-deployed service to
+ * put in it. */
+export const CATEGORY_ORDER: Category[] = ["library", "project"];
 
 export const CATEGORY_LABEL: Record<Category, string> = {
   library: "Libraries",
-  microservice: "Microservices",
   project: "Projects",
 };
 
 export const CATEGORY_BLURB: Record<Category, string> = {
   library:
     "Importable Go modules — drop-in pieces designed to carry across services and employers.",
-  microservice:
-    "Service-shaped features with their own API, storage, and lifecycle.",
-  project: "Full applications and products.",
+  project: "Full applications and portfolio features.",
 };
 
 /** groupByCategory returns projects bucketed by category, preserving the
@@ -82,7 +81,6 @@ export const CATEGORY_BLURB: Record<Category, string> = {
 export function groupByCategory(projects: Project[]): Record<Category, Project[]> {
   const out: Record<Category, Project[]> = {
     library: [],
-    microservice: [],
     project: [],
   };
   for (const p of projects) {
