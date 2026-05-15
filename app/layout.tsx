@@ -43,6 +43,7 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
+          <div className="page-ambient" aria-hidden />
           <SiteNav />
           <main className="flex-1">{children}</main>
           <SiteFooter />

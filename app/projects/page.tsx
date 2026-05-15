@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { ProjectCard } from "@/components/project-card";
+import { HeroSpotlight } from "@/components/hero-spotlight";
+import { TiltCard } from "@/components/tilt-card";
 import { getAllProjects } from "@/lib/projects";
 
 export const metadata: Metadata = {
@@ -16,9 +18,11 @@ export default async function ProjectsPage() {
         <p className="font-mono text-xs uppercase tracking-widest text-accent">
           Projects
         </p>
-        <h1 className="mt-3 text-4xl font-bold tracking-tight text-foreground">
-          Things I&apos;ve built
-        </h1>
+        <HeroSpotlight className="mt-3 block">
+          <h1 className="hero-text text-4xl font-bold tracking-tight">
+            Things I&apos;ve built
+          </h1>
+        </HeroSpotlight>
         <p className="mt-3 max-w-2xl text-base text-muted-foreground">
           A mix of reusable libraries from research mode, work projects, and
           learning experiments. The libraries are designed to drop into future
@@ -32,7 +36,9 @@ export default async function ProjectsPage() {
             className="reveal"
             style={{ ["--reveal-delay" as never]: `${i * 50}ms` }}
           >
-            <ProjectCard project={p} />
+            <TiltCard>
+              <ProjectCard project={p} />
+            </TiltCard>
           </div>
         ))}
       </div>

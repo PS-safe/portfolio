@@ -2,6 +2,8 @@ import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { ProjectCard } from "@/components/project-card";
 import { Mermaid } from "@/components/mermaid";
+import { HeroSpotlight } from "@/components/hero-spotlight";
+import { TiltCard } from "@/components/tilt-card";
 import { getFeaturedProjects } from "@/lib/projects";
 
 const overviewDiagram = `flowchart LR
@@ -25,9 +27,11 @@ export default async function Home() {
         <p className="font-mono text-xs uppercase tracking-widest text-accent">
           Backend engineer · Thailand
         </p>
-        <h1 className="mt-4 text-4xl font-bold tracking-tight text-foreground sm:text-5xl">
-          Phatdanai Shinpanjapol
-        </h1>
+        <HeroSpotlight className="mt-4 block">
+          <h1 className="hero-text text-4xl font-bold tracking-tight sm:text-5xl">
+            Phatdanai Shinpanjapol
+          </h1>
+        </HeroSpotlight>
         <p className="mt-5 max-w-2xl text-base leading-7 text-muted-foreground sm:text-lg">
           I build production Go services — real-time APIs, microservices, and
           core financial/auth systems. Currently growing toward full-stack and
@@ -68,7 +72,9 @@ export default async function Home() {
               className="reveal"
               style={{ ["--reveal-delay" as never]: `${i * 60}ms` }}
             >
-              <ProjectCard project={p} />
+              <TiltCard>
+                <ProjectCard project={p} />
+              </TiltCard>
             </div>
           ))}
         </div>

@@ -81,14 +81,18 @@ body {
   }
 }
 
-/* Project-card lift on hover */
+/* Project-card lift on hover — brighter accent glow + thin accent ring */
 .project-card {
-  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease,
+              background 0.2s ease;
 }
 .project-card:hover {
   transform: translateY(-2px);
   border-color: var(--accent);
-  box-shadow: 0 6px 16px -8px color-mix(in srgb, var(--accent) 35%, transparent);
+  background: color-mix(in srgb, var(--accent) 4%, var(--card));
+  box-shadow:
+    0 10px 30px -8px color-mix(in srgb, var(--accent) 45%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--accent) 50%, transparent);
 }
 
 /* Nav link underline that sweeps in on hover */
@@ -185,8 +189,100 @@ body {
   );
 }
 
+/* Ambient blue glow that sits behind every page. Two soft accent orbs, very
+   blurred, low opacity — sets the "this is a blue site" tone without
+   distracting from content. Pure CSS, no JS, no layout cost. */
+.page-ambient {
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+}
+.page-ambient::before,
+.page-ambient::after {
+  content: "";
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(90px);
+  background: var(--accent);
+}
+.page-ambient::before {
+  top: -18%;
+  right: -18%;
+  width: 55vw;
+  height: 55vw;
+  opacity: 0.12;
+}
+.page-ambient::after {
+  bottom: -22%;
+  left: -18%;
+  width: 50vw;
+  height: 50vw;
+  opacity: 0.08;
+}
+.dark .page-ambient::before { opacity: 0.18; }
+.dark .page-ambient::after  { opacity: 0.10; }
+
+/* Cursor-follow spotlight on hero H1 — radial accent gradient masked into
+   the text via background-clip:text. The wrapper component sets --mx/--my
+   from a mousemove listener; with no mouse interaction the fallback is a
+   static accent→foreground gradient. */
+.hero-spotlight {
+  --mx: 50%;
+  --my: 50%;
+  position: relative;
+  display: inline-block;
+}
+.hero-spotlight .hero-text {
+  background: radial-gradient(
+    260px circle at var(--mx) var(--my),
+    var(--accent) 0%,
+    color-mix(in srgb, var(--accent) 55%, var(--foreground)) 35%,
+    var(--foreground) 75%
+  );
+  -webkit-background-clip: text;
+          background-clip: text;
+  color: transparent;
+  background-size: 100% 100%;
+  transition: background-position 0.08s linear;
+}
+
+/* 3D tilt that follows the cursor over project cards. Custom properties are
+   driven from the TiltCard client component. */
+.tilt-card {
+  --tx: 0deg;
+  --ty: 0deg;
+  perspective: 900px;
+  will-change: transform;
+  transform: perspective(900px) rotateX(var(--tx)) rotateY(var(--ty));
+  transition: transform 0.18s ease-out;
+}
+
+/* Focus ring — keyboard users see an accent halo instead of a system outline */
+*:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Themed scrollbar — narrow and accent-tinted on WebKit */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--accent) 25%, transparent);
+  border-radius: 6px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .status-dot::after { animation: none; }
   .tech-chip { transition: none; }
   .tech-chip:hover { transform: none; }
+  .tilt-card { transform: none; transition: none; }
+  .project-card { transition: none; }
+  .project-card:hover { transform: none; }
+  .hero-spotlight .hero-text { transition: none; }
 }

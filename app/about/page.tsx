@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Mail } from "lucide-react";
 import { GithubIcon, LinkedinIcon } from "@/components/icons";
+import { HeroSpotlight } from "@/components/hero-spotlight";
 import { Mdx } from "@/components/mdx";
 import { getAbout } from "@/lib/about";
 
@@ -19,9 +20,11 @@ export default async function AboutPage() {
         <p className="font-mono text-xs uppercase tracking-widest text-accent">
           About
         </p>
-        <h1 className="mt-3 text-4xl font-bold tracking-tight text-foreground">
-          {about.name}
-        </h1>
+        <HeroSpotlight className="mt-3 block">
+          <h1 className="hero-text text-4xl font-bold tracking-tight">
+            {about.name}
+          </h1>
+        </HeroSpotlight>
         <p className="mt-3 text-base text-muted-foreground">
           {about.title} · {about.location}
         </p>
