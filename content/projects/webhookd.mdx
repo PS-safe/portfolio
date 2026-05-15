@@ -95,9 +95,9 @@ The demo above runs a **synchronous** TS port. Why not a real queue? Vercel serv
 - **Decorrelated jitter, not full jitter.** Decorrelated jitter (random in `[base, prev*mult]`) gives a better spread under load than full jitter (random in `[0, exponential]`) — important when you're retrying thousands of deliveries against the same downstream service.
 - **Delivery ID is deterministic from event + endpoint.** `dlv_<event_id>_<endpoint_id>` — receivers can use it for idempotency dedup keys without coordinating with you.
 - **Response body is truncated and stored** for forensics. 4096 bytes is enough for most error pages without filling up Postgres.
-- **SSRF defense at the demo boundary.** The TS port rejects `localhost`, `127.0.0.1`, `169.254.*`, RFC1918 ranges, and non-http(s) schemes before dispatching. A real production system would also resolve DNS and re-check the IP — that's noted in the roadmap.
+- **SSRF defense at the demo boundary.** The TS port rejects `localhost`, `127.0.0.1`, `169.254.*`, RFC1918 ranges, and non-http(s) schemes before dispatching. A real production system would also resolve DNS and re-check the IP — that's noted below.
 
-## Roadmap
+## Future work
 
 - [ ] Dockerfile + Fly/Render deploy config for the Go service
 - [ ] DNS-resolved SSRF guard (block dispatches that resolve to private IPs even if hostname is public)

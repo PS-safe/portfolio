@@ -65,7 +65,7 @@ Both implementations share the same Postgres schema and the same data model. If 
 - **Contract tests, not per-backend tests.** A single `RunContract` function in Go exercises every method; new backends just call it. The TS port shares the same data model so it's covered indirectly.
 - **Strict URL validation at the boundary.** Only http/https with a real host. Internal hostnames (`localhost`, `127.0.0.1`) rejected to avoid open-redirect / SSRF surprises.
 
-## Roadmap
+## Future work
 
 - [ ] Custom slug support exposed through the public form
 - [ ] Expiry / TTL per link

@@ -47,7 +47,7 @@ Operations: `Put`, `Get`, `Stat`, `Delete`, `PresignGet`, `PresignPut`.
 - **Sentinel errors with `errors.Is`.** `ErrNotFound`, `ErrInvalidKey` — checked semantically, not by string matching.
 - **No global state.** Each backend is constructed explicitly with its config; library code is reentrant by default.
 
-## Roadmap
+## Future work
 
 - [ ] Wire up `aws-sdk-go-v2` in the S3 backend
 - [ ] Multipart upload support

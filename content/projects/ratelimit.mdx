@@ -76,7 +76,7 @@ The live demo above runs a TypeScript port (`lib/ratelimit.ts`) that hits Neon P
 - **`IPKey` reads `X-Forwarded-For` first, then `RemoteAddr`.** Trust XFF only behind a proxy that strips inbound headers — documented in the README so the trap doesn't bite a future caller.
 - **Memory backend stores timestamps, not counters.** Counters force you to know the algorithm at write time; timestamps let any algorithm (sliding window, fixed window, leaky bucket-ish) read the same data.
 
-## Roadmap
+## Future work
 
 - [ ] Token bucket as a sibling algorithm (`Limiter` interface stays; `tokenbucket/` package adds it)
 - [ ] Per-route limit composition (`{global: 1000/min, per-user: 100/min}` chained)
