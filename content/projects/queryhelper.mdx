@@ -1,0 +1,92 @@
+---
+title: queryhelper
+slug: queryhelper
+summary: DRF-style filter / search / sort / paginate helper for Go list endpoints. One Spec, swappable backends (slice, GORM), allowlist by construction.
+year: 2026
+tech: [Go, GORM, "net/http", generics]
+repo: https://github.com/PS-safe/queryhelper
+status: active
+destination: [portable, personal]
+featured: true
+order: 6
+---
+
+## How it works
+
+<Mermaid
+  caption="queryhelper — HTTP query string to typed Page[T]"
+  chart={`flowchart LR
+    C[Client] -->|GET /things?page=2&search=foo&status=active| H[net/http handler]
+    H -->|qh.Parse url.Values cfg| S[Spec struct]
+    H -->|backend.Apply ctx spec cfg| B{Backend T}
+    B -->|in-memory walk| Mem[(items)]
+    B -->|WHERE LOWER LIKE ORDER LIMIT plus COUNT| DB[(Postgres / GORM)]
+    B -->|Page T| H
+    H -->|items total page page_size total_pages| C
+    Cfg[Config<br/>Searchable / Filterable / Orderable] -.allowlist.-> H
+`} />
+
+## Why this exists
+
+Every Go service ends up writing the same handler shape: parse `?page=&page_size=&search=&order=&status=...` from a URL, validate which fields the caller is allowed to filter or sort by, build a query, count the total, paginate, return `{items, total, ...}`. Repeating it per endpoint is the kind of work where bugs hide — an attacker eventually finds the endpoint that forgot to allowlist column names and trades the API for a column scan.
+
+`queryhelper` is the smallest version of "list endpoint plumbing" I'd actually drop into a new Go service. One `Spec`, one `Config`, one `Backend[T]` interface; the field allowlist is **a property of the type system**, not "remember to check."
+
+## What it does
+
+```go
+import (
+    qh "github.com/PS-safe/queryhelper"
+    "github.com/PS-safe/queryhelper/slice"
+)
+
+cfg := qh.Config{
+    SearchableFields: []string{"title", "body"},
+    FilterableFields: []string{"status", "author_id"},
+    OrderableFields:  []string{"created_at", "title"},
+    DefaultPageSize:  20,
+    MaxPageSize:      100,
+    DefaultOrder:     []qh.OrderBy{{Field: "created_at", Desc: true}},
+}
+
+func listTasks(w http.ResponseWriter, r *http.Request) {
+    spec, err := qh.Parse(r.URL.Query(), cfg)
+    if err != nil { http.Error(w, err.Error(), 400); return }
+    page, _ := slice.NewWithReflection(tasks).Apply(r.Context(), spec, cfg)
+    json.NewEncoder(w).Encode(page)
+}
+```
+
+That handler accepts `?page`, `?page_size`, `?search`, `?status=a,b`, `?order=-created_at` — and rejects `?password_hash=admin` because `password_hash` isn't in `FilterableFields`.
+
+## Backends
+
+| Backend | Status | Use for |
+|---|---|---|
+| `slice` | ✅ complete | tests, small admin tools, in-memory caches; reflection helper or explicit lookup |
+| `gorm`  | ✅ complete | production over Postgres / MySQL / SQLite via GORM; one `*gorm.DB` per resource |
+
+The Spec is plain data — adding a Mongo or raw `database/sql` backend later is one `Apply` method, no changes to the core.
+
+## Design decisions worth noting
+
+- **Allowlist by construction.** `Parse` checks every query parameter against `Config.{Searchable,Filterable,Orderable}Fields` before it returns. A Backend can trust that field names in `Spec` are safe to interpolate. The same posture every well-built ORM-backed REST API ships with — codified in the library instead of repeated per handler.
+- **Inspired by Django REST Framework.** The list-view contract (`SearchFilter`, `OrderingFilter`, `DjangoFilterBackend`, `PageNumberPagination`) is well-trodden. Clean-room re-implementation of the public concept — `Spec` is mine, the naming is mine, the shape leans on what DRF documented openly.
+- **Generics carry the entity type end to end.** `Page[T]` and `Backend[T]` mean handlers don't cast back from `any`. Go 1.18+ closed the long-running gap that used to make this awkward.
+- **`page_size` is clamped, not rejected.** A request for `99999` silently caps at `MaxPageSize` (default 100). UI bugs don't 4xx.
+- **Multi-value filters from one or many.** `?status=active,pending` and `?status=active&status=pending` produce the same `IN`-style match — clients can pick whichever feels natural.
+- **No `__gte` / `__icontains` operators in v0.** They're real and useful, but they widen the parser surface significantly. The v0 filter is exact-match; operators are on the public roadmap.
+- **Reflection is opt-in.** `slice.NewWithReflection` is the convenience door; `slice.New(items, explicitLookup)` is the production door — no magic and faster.
+
+## Why no live demo (yet)
+
+Like [auth](/projects/auth), this is a Go library — the portfolio's runtime is Next.js, so a "type a query, see results" widget would be a TypeScript reimplementation of the same patterns, not a demo of this library. The runnable `cmd/server` in the repo shows the API surface end to end against an in-memory dataset; see the README for `curl` examples.
+
+## Future work
+
+- [ ] Per-field lookup operators (`field__gte`, `field__lte`, `field__icontains`, `field__in`)
+- [ ] Cursor / keyset pagination as an alternative to page+offset
+- [ ] Mongo backend
+- [ ] Raw `database/sql` backend (no ORM)
+- [ ] HTTP middleware to write the `Page` envelope automatically
+- [ ] sqlmock test for the gorm backend
