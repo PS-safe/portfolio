@@ -5,6 +5,7 @@ import { TryOtpForm } from "./try-otp-form";
 import { TryRateLimitForm } from "./try-ratelimit-form";
 import { TryWebhookForm } from "./try-webhook-form";
 import { Mermaid } from "./mermaid";
+import { TechStack } from "./tech-stack";
 
 const components: MDXRemoteProps["components"] = {
   TryShortenForm,
@@ -12,6 +13,7 @@ const components: MDXRemoteProps["components"] = {
   TryRateLimitForm,
   TryWebhookForm,
   Mermaid,
+  TechStack,
   h1: (p: ComponentPropsWithoutRef<"h1">) => (
     <h1 className="mt-8 mb-4 text-3xl font-bold tracking-tight text-foreground" {...p} />
   ),

@@ -7,6 +7,10 @@ export type AboutFrontmatter = {
   title: string;
   location: string;
   email: string;
+  github?: string;
+  linkedin?: string;
+  /** Short "what I'm doing right now" line for the status pill. */
+  currently?: string;
 };
 
 export type About = AboutFrontmatter & { content: string };
