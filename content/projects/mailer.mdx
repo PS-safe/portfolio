@@ -1,0 +1,96 @@
+---
+title: mailer
+slug: mailer
+summary: Backend-agnostic transactional email library for Go. One Sender interface, three backends (memory / SMTP / Brevo), zero external dependencies.
+year: 2026
+tech: [Go, SMTP, Brevo, "net/smtp"]
+repo: https://github.com/PS-safe/mailer
+status: active
+destination: [portable, personal]
+featured: true
+order: 6
+---
+
+## How it works
+
+<Mermaid
+  caption="mailer — one Sender interface, three backends"
+  chart={`flowchart LR
+    App[Application code] -->|mailer.Message| S[Sender.Send]
+    S -->|Validate boundary| V{m.Validate}
+    V -.->|ErrInvalidMessage| App
+    V -->|ok| B{Backend}
+    B -->|memory| Mem[(captured for tests)]
+    B -->|smtp| SMTP[Any SMTP server]
+    B -->|brevo| Brevo[Brevo HTTP API]
+    SMTP --> Inbox[Recipient inbox]
+    Brevo --> Inbox
+    Brevo -.->|non-2xx: status code only<br/>upstream body never leaked| App
+`} />
+
+## Why this exists
+
+Every backend that does anything user-facing eventually has to send email — verify an address, reset a password, ship a receipt. The choice tends to be: hand-roll SMTP and get the MIME wrong, hard-bind to one provider's SDK and pay for it when you migrate, or pull in something heavyweight you don't need 90% of.
+
+`mailer` is the smallest version that actually lets you switch providers. One `Send(ctx, Message) error` interface, three swappable backends, **zero external dependencies** — pure standard library. The point isn't that emails are hard; the point is that the *seam* between application code and "the email is gone now" should be a single method call your tests can stand in for trivially.
+
+## What it does
+
+```go
+import (
+    "github.com/PS-safe/mailer"
+    "github.com/PS-safe/mailer/brevo"
+)
+
+sender := brevo.New(os.Getenv("BREVO_API_KEY"))
+
+err := sender.Send(ctx, mailer.Message{
+    From:    mailer.Address{Name: "My App", Email: "app@example.com"},
+    To:      []mailer.Address{{Email: "user@example.com"}},
+    Subject: "Verify your email",
+    Text:    "Your code is 123456",
+    HTML:    "<p>Your code is <b>123456</b></p>",
+})
+```
+
+Swap `brevo.New(...)` for `memory.New()` in tests or `smtp.New(...)` in prod — the `Sender` interface is the only surface application code sees.
+
+## Backends
+
+| Backend | Import | Status | Use for |
+|---|---|---|---|
+| `memory` | `mailer/memory` | ✅ complete | tests, dev — captures via `Sent()`, sends nothing; `FailNext()` simulates a backend error |
+| `smtp`   | `mailer/smtp`   | ✅ complete | any SMTP server; local catchers (MailHog/Mailpit); providers once you have SMTP creds |
+| `brevo`  | `mailer/brevo`  | ✅ complete | free transactional path — verifies a single sender by email link, no domain ownership needed |
+
+## Why Brevo specifically
+
+Of the free-tier transactional providers, **Brevo is the only one that lets you send to arbitrary recipients after verifying just one sender address by email link** — no DNS domain ownership required. Resend, SendGrid, Mailgun, Postmark, and AWS SES sandbox all require a verified domain to reach anyone but yourself. That's a hard requirement when you're building from a personal Gmail address with no domain in play yet.
+
+Once you own a domain and wire it up, the right move is to add a Resend backend and migrate; the `Sender` interface means application code doesn't change.
+
+## Design decisions worth noting
+
+- **Zero external dependencies.** All three backends are pure standard library — `net/smtp`, `net/http`, `mime/quotedprintable`. Nothing to audit, nothing to keep up to date. Most "small" Go libraries quietly bring in 10+ transitive deps; this one brings in zero.
+- **The library never logs.** A `Send` either returns `nil` or an `error`. Logging policy belongs to the caller, who has the request context the library doesn't.
+- **Errors never carry the upstream response body.** Brevo error payloads have echoed api-key fragments and account IDs in past incidents. The brevo backend returns the status code only — a library shouldn't log, and it shouldn't hand you a string that's unsafe to log either. Caller wraps the transport if it wants the body.
+- **`Validate` owns the error wrapping.** `Message.Validate()` returns errors that already wrap `ErrInvalidMessage`, so every backend's first line is `if err := m.Validate(); err != nil { return err }`. The sentinel contract can't be forgotten.
+- **The memory backend is a real test double.** It validates exactly like a real backend, captures messages for assertions via `Sent()`, and can simulate failure with `FailNext()`. Tests don't fake a fake — they exercise the same validation path.
+- **multipart/alternative done properly.** When a message has both Text and HTML, the smtp backend emits a quoted-printable multipart body so clients pick the format they want and UTF-8 survives intact.
+- **`cmd/sendmail` is a CLI, not `cmd/server`.** A mailer is something you *call*, not something you POST to. An HTTP wrapper would have been theatre. Deliberate departure from the other research libraries' `cmd/server` pattern.
+
+## Why no live demo
+
+`mailer` is a Go library — calling it from the portfolio's TypeScript runtime would mean reimplementing the same patterns in TS, not demoing the library. The runnable `cmd/sendmail` in the repo accepts a backend choice from env (`memory` for zero-config dry runs; `smtp` or `brevo` for real sends) — see the README for the curl-equivalent invocations.
+
+It's also worth noting `mailer` already has a real consumer: the [auth](/projects/auth) library composes it for email verification and password reset, which is the more useful production reference than any demo widget would be.
+
+## Future work
+
+- [ ] Cc / Bcc / Reply-To
+- [ ] Attachments
+- [ ] `resend` backend (once a verified domain is in play)
+- [ ] AWS SES backend
+- [ ] Context-aware SMTP dial (manual `DialContext` + STARTTLS)
+- [ ] Template helper — render Text + HTML from one source
+- [ ] MailHog-based integration test for the smtp backend (testcontainers)
