@@ -2,10 +2,12 @@ import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { isConfigured } from "@/lib/db";
 import { hashToken, SESSION_COOKIE_NAME } from "@/lib/lab/auth";
-import { sessionByTokenHash } from "@/lib/lab/db";
+import { listTasks, sessionByTokenHash } from "@/lib/lab/db";
+import { parse } from "@/lib/lab/queryhelper";
+import { TASK_CFG } from "@/app/api/lab/tasks/route";
 import { HeroSpotlight } from "@/components/hero-spotlight";
 import { AuthPanel } from "@/components/lab/auth-panel";
-import { SignedInStub } from "@/components/lab/signed-in-stub";
+import { Dashboard } from "@/components/lab/dashboard";
 
 export const metadata: Metadata = {
   title: "Lab",
@@ -13,11 +15,14 @@ export const metadata: Metadata = {
     "A small full-stack demo that composes the PS-safe research libraries (auth + ratelimit + queryhelper) into one screen.",
 };
 
+type SP = Promise<Record<string, string | string[] | undefined>>;
+
 // /lab is one URL with two states — the Server Component reads the cookie
-// and renders either the auth panel or the signed-in surface. This matches
-// PLAN.md §4: no /lab/login or /lab/dashboard sub-routes, no client-side
-// "am I signed in" flash, no redirect waterfall.
-export default async function LabPage() {
+// and renders either the auth panel or the dashboard. URL query params
+// drive the dashboard's view state (filter/search/sort/page), so each
+// filter change re-runs this function with new searchParams and yields a
+// fresh page of tasks server-side. See PLAN.md §4.
+export default async function LabPage({ searchParams }: { searchParams: SP }) {
   if (!isConfigured()) {
     return <NotConfigured />;
   }
@@ -44,9 +49,49 @@ export default async function LabPage() {
         </p>
       </header>
 
-      {user ? <SignedInStub email={user.email} /> : <AuthPanel />}
+      {user ? (
+        <DashboardForUser userId={user.id} email={user.email} searchParams={searchParams} />
+      ) : (
+        <AuthPanel />
+      )}
     </div>
   );
+}
+
+async function DashboardForUser({
+  userId,
+  email,
+  searchParams,
+}: {
+  userId: string;
+  email: string;
+  searchParams: SP;
+}) {
+  const raw = await searchParams;
+  const urlParams = new URLSearchParams();
+  for (const [k, v] of Object.entries(raw)) {
+    if (Array.isArray(v)) v.forEach((x) => urlParams.append(k, x));
+    else if (v !== undefined) urlParams.set(k, v);
+  }
+
+  const parsed = parse(urlParams, TASK_CFG);
+  if (!parsed.ok) {
+    // Unknown filter/sort field came in via a hand-crafted URL. Showing
+    // a 400-ish message is the honest call rather than silently dropping
+    // params — keeps the URL contract visible.
+    return (
+      <div className="mt-8 rounded-lg border border-amber-500/30 bg-amber-500/5 p-4 text-sm">
+        <p className="font-medium">Couldn&apos;t parse the URL: {parsed.error}</p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Try removing the offending parameter from the URL bar, or{" "}
+          <a href="/lab" className="underline">go back to the default view</a>.
+        </p>
+      </div>
+    );
+  }
+
+  const initialPage = await listTasks(userId, parsed.spec, TASK_CFG);
+  return <Dashboard email={email} initialPage={initialPage} />;
 }
 
 function NotConfigured() {

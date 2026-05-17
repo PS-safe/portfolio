@@ -1,6 +1,7 @@
 import "server-only";
 
 import { sql } from "@/lib/db";
+import type { Config, Page, Spec } from "./queryhelper";
 
 export type LabUser = {
   id: string;
@@ -98,4 +99,140 @@ export async function sessionByTokenHash(
 export async function deleteSession(tokenHash: string): Promise<void> {
   const db = sql();
   await db`DELETE FROM lab_sessions WHERE token_hash = ${tokenHash}`;
+}
+
+// ---------------------------------------------------------------------------
+// Tasks
+// ---------------------------------------------------------------------------
+
+export type TaskStatus = "active" | "pending" | "archived";
+
+export type LabTask = {
+  id: string;
+  user_id: string;
+  title: string;
+  body: string | null;
+  status: TaskStatus;
+  created_at: string;
+  updated_at: string;
+};
+
+export async function createTask(
+  id: string,
+  userId: string,
+  input: { title: string; body: string | null; status: TaskStatus },
+): Promise<LabTask> {
+  const db = sql();
+  const rows = (await db`
+    INSERT INTO lab_tasks (id, user_id, title, body, status)
+    VALUES (${id}, ${userId}, ${input.title}, ${input.body}, ${input.status})
+    RETURNING id, user_id, title, body, status, created_at, updated_at
+  `) as LabTask[];
+  return rows[0];
+}
+
+export async function getTaskOwnedBy(taskId: string, userId: string): Promise<LabTask | null> {
+  const db = sql();
+  const rows = (await db`
+    SELECT id, user_id, title, body, status, created_at, updated_at
+      FROM lab_tasks WHERE id = ${taskId} AND user_id = ${userId}
+  `) as LabTask[];
+  return rows[0] ?? null;
+}
+
+export async function updateTask(
+  taskId: string,
+  userId: string,
+  patch: { title?: string; body?: string | null; status?: TaskStatus },
+): Promise<LabTask | null> {
+  const db = sql();
+  // COALESCE keeps existing values when the patch omits a field; that lets
+  // us run one SQL statement regardless of which subset of fields changed.
+  // Authorization check is in the WHERE — a foreign user gets 0 rows back.
+  const rows = (await db`
+    UPDATE lab_tasks
+       SET title      = COALESCE(${patch.title ?? null}, title),
+           body       = CASE WHEN ${patch.body !== undefined} THEN ${patch.body ?? null} ELSE body END,
+           status     = COALESCE(${patch.status ?? null}, status),
+           updated_at = now()
+     WHERE id = ${taskId} AND user_id = ${userId}
+     RETURNING id, user_id, title, body, status, created_at, updated_at
+  `) as LabTask[];
+  return rows[0] ?? null;
+}
+
+export async function deleteTask(taskId: string, userId: string): Promise<boolean> {
+  const db = sql();
+  // pgClientResult shape from neon-serverless includes rowCount; we cast
+  // because the @neondatabase/serverless tag-template return type is
+  // structural and erases the count for SELECTs. DELETE always returns
+  // a meaningful rowCount.
+  const result = (await db`
+    DELETE FROM lab_tasks WHERE id = ${taskId} AND user_id = ${userId}
+  `) as { length?: number };
+  return (result.length ?? 0) > 0;
+}
+
+/** listTasks runs a queryhelper Spec against lab_tasks for one user. Field
+ *  names in spec are guaranteed allowlisted by parse() upstream, so it's
+ *  safe to interpolate them; values always go through parameterized binding.
+ */
+export async function listTasks(
+  userId: string,
+  spec: Spec,
+  cfg: Config,
+): Promise<Page<LabTask>> {
+  const db = sql();
+
+  const params: unknown[] = [userId];
+  const where: string[] = [`user_id = $1`];
+
+  for (const [field, vals] of Object.entries(spec.filters)) {
+    if (vals.length === 0) continue;
+    const placeholders = vals.map((_, i) => `$${params.length + i + 1}`).join(", ");
+    params.push(...vals);
+    where.push(`${field} IN (${placeholders})`);
+  }
+
+  if (spec.search && cfg.searchableFields.length > 0) {
+    const like = `%${spec.search.toLowerCase()}%`;
+    const orClauses = cfg.searchableFields.map((f) => {
+      params.push(like);
+      return `lower(${f}) LIKE $${params.length}`;
+    });
+    where.push(`(${orClauses.join(" OR ")})`);
+  }
+
+  const whereSql = `WHERE ${where.join(" AND ")}`;
+
+  const countRows = (await db.query(
+    `SELECT count(*)::int AS n FROM lab_tasks ${whereSql}`,
+    params,
+  )) as Array<{ n: number }>;
+  const total = countRows[0]?.n ?? 0;
+
+  const orderSql = spec.order.length
+    ? `ORDER BY ${spec.order.map((o) => `${o.field} ${o.desc ? "DESC" : "ASC"}`).join(", ")}`
+    : "";
+
+  const limitIdx = params.length + 1;
+  const offsetIdx = params.length + 2;
+  params.push(spec.pageSize, (spec.page - 1) * spec.pageSize);
+
+  const rows = (await db.query(
+    `SELECT id, user_id, title, body, status, created_at, updated_at
+       FROM lab_tasks
+       ${whereSql}
+       ${orderSql}
+       LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
+    params,
+  )) as LabTask[];
+
+  return {
+    items: rows,
+    total,
+    page: spec.page,
+    pageSize: spec.pageSize,
+    totalPages: spec.pageSize > 0 ? Math.ceil(total / spec.pageSize) : 0,
+  };
 }
