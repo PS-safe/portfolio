@@ -1,0 +1,139 @@
+---
+title: lab
+slug: lab
+summary: One-screen full-stack demo. Real signup + opaque sessions + per-user task dashboard with filter/search/sort/CRUD. Composes the PS-safe research libraries inside this portfolio's Next.js runtime against Neon.
+year: 2026
+tech: [TypeScript, "Next.js 16", "React 19", RSC, Neon, Argon2id, "@node-rs/argon2"]
+repo: https://github.com/PS-safe/portfolio/tree/main/app/lab
+liveUrl: /lab
+status: active
+destination: [showcase, personal]
+featured: true
+category: project
+order: 12
+---
+
+## How it works
+
+<Mermaid
+  caption="lab — single route, two states, URL-driven dashboard"
+  chart={`flowchart LR
+    C[Client] -->|GET /lab + cookie + searchParams| RSC[Server Component]
+    RSC -->|read lab_session cookie| Sess[sessionByTokenHash]
+    Sess --> DB[(Neon<br/>lab_users · lab_sessions · lab_tasks)]
+    RSC -->|parse searchParams| Spec[queryhelper Spec]
+    Spec -->|allowlist check| RSC
+    RSC -->|listTasks userId spec| DB
+    RSC -->|user + Page T| D[Dashboard client]
+    D -->|filter chip / search / sort / page click| URL[router.replace inside startTransition]
+    URL -->|re-runs RSC with new searchParams| RSC
+    D -->|create / edit / delete| API[/api/lab/tasks/*]
+    API --> DB
+    D -.->|useOptimistic over server data| D
+`} />
+
+## Why this exists
+
+Seven Go libraries on the [Projects](/projects) page evidence backend
+craft. That's only half the story I want a senior reviewer to see —
+the other half is *"can this person ship a polished frontend?"* The
+[live `/lab`](/lab) is the single artifact that answers both at once:
+sign up, log in, drive a small dashboard, then open the source.
+
+Same idea as the [shortlink](/projects/shortlink) /
+[ratelimit](/projects/ratelimit) / [webhookd](/projects/webhookd)
+in-portfolio runtime ports — but at full app shape rather than one
+widget per page.
+
+## What it does
+
+- Sign up with email + password → Argon2id-hashed, opaque
+  session token (`sha256(token)` in the DB, raw token in an
+  `HttpOnly Secure SameSite=Lax` cookie, 7-day TTL)
+- Land on a per-user dashboard of "tasks" (status: active /
+  pending / archived)
+- Filter (multi-select chips), search (debounced text across title +
+  body), sort (created_at / title / status, asc/desc), paginate (8/page)
+- Create / edit / delete tasks via a focus-trapped native `<dialog>`
+- Sign out cleanly
+
+All view state — filter, search, sort, page — lives in the URL. The
+dashboard is shareable: copy `/lab?status=active,pending&order=title`
+to a teammate and they see the same view after they sign in.
+
+## Design decisions worth noting
+
+- **One URL, two states.** `/lab` is one route. The Server Component
+  reads the session cookie and decides at render-time whether to show
+  the auth panel or the dashboard. No `/lab/login` page, no redirect
+  waterfall, no client-side "am I signed in" flash.
+- **URL is the source of truth for view state.** Filter chips, search
+  input, sort dropdown, page number — every one writes to the URL via
+  `router.replace` inside `useTransition`. The RSC re-runs with the
+  new `searchParams` and streams a fresh page of tasks. No
+  TanStack Query, no Zustand, no Jotai — the URL is the only store.
+- **Optimistic mutations via React 19's `useOptimistic`.** Create,
+  edit, and delete update the UI immediately and reconcile against
+  `router.refresh()`'s next server snapshot. Errors surface inline;
+  on success the optimistic state silently merges with the truth.
+- **Native `<dialog>` for both modals.** Focus trap, Esc to close,
+  backdrop click — all free from the platform. No
+  Headless UI, no Radix Dialog, no custom focus-management hook.
+- **Argon2 cold-start UX is named in the copy.** First signup on a
+  cold Vercel function pays a ~2-4s path (function init + native
+  binding init + 64 MiB Argon2id hash). The submit button reads
+  *"Setting up secure password storage…"* — the wait is visible *and*
+  explained, instead of looking like a frozen page.
+- **Anti-enumeration on `/login`, deliberate enumeration on `/signup`.**
+  `/login` returns the same `401` for "unknown email" and "wrong
+  password" so an attacker can't probe which emails have accounts.
+  `/signup` returns `409` if the email is taken — that *does* leak
+  enumeration, and it's an accepted trade-off for the demo (the
+  production answer routes through a mailer-driven verify-or-recover
+  email; mailer is deferred from v1). The trade-off is part of what
+  the source is meant to show.
+- **404 (not 403) on foreign-owned task IDs.** `PATCH` and `DELETE`
+  on `/api/lab/tasks/[id]` enforce ownership via `WHERE user_id = $1`.
+  A foreign caller gets `404`, not `403`, so they can't enumerate
+  which IDs exist on other accounts by status code.
+- **Three colors total on the dashboard surface.** Accent (active),
+  amber (pending), muted (archived). Color is never the only signal —
+  every status chip pairs a dot and a text label. The portfolio's
+  ambient blue glow + cursor spotlight + 3D card tilt are
+  deliberately turned off here — tables can't be toys.
+
+## Why it's inside the portfolio (and not its own service)
+
+Same answer as [shortlink](/projects/shortlink) /
+[webhookd](/projects/webhookd): running another deployment for one
+demo means another platform account, cross-service auth, two cold-
+start budgets, one more thing to monitor. The lab is a one-screen
+demo of patterns I'd reach for in a real product; it doesn't earn its
+own host. The Go libraries in the [Libraries section](/projects) are
+the artifacts I'd carry between employers — `/lab` is the proof that
+I can wire them up.
+
+## Source
+
+| Where | What |
+|---|---|
+| [`app/lab/`](https://github.com/PS-safe/portfolio/tree/main/app/lab) | Page (RSC + auth gate), planning doc, schema migration |
+| [`app/api/lab/`](https://github.com/PS-safe/portfolio/tree/main/app/api/lab) | 8 routes: signup / login / logout / me + tasks CRUD |
+| [`lib/lab/`](https://github.com/PS-safe/portfolio/tree/main/lib/lab) | argon2 + session helpers; Neon queries; TS port of the queryhelper Spec→Page contract |
+| [`components/lab/`](https://github.com/PS-safe/portfolio/tree/main/components/lab) | 10 net-new components — Dashboard, FilterBar, TaskList, TaskRow, TaskFormDialog, DeleteConfirm, Pagination, Skeleton, StatusChip, AuthPanel |
+| [`PLAN.md`](https://github.com/PS-safe/portfolio/blob/main/app/lab/PLAN.md) | The 10-section locked plan this was built from — audience, scope, references, IA, visual language, data model, components, agent team, config, risk register |
+
+## Composed libraries
+
+- [auth](/projects/auth) — Argon2id + opaque session pattern (TS port here, Go canonical)
+- [ratelimit](/projects/ratelimit) — `/signup` and `/login` share a per-IP 5/min bucket
+- [queryhelper](/projects/queryhelper) — Spec→Page contract for the dashboard's filter/search/sort/page
+
+## Future work
+
+- [ ] Email verification on signup (composes [mailer](/projects/mailer) once deployed)
+- [ ] Password reset
+- [ ] Stale-account cleanup cron (Neon free tier has limits)
+- [ ] Toast-with-undo on delete (the small dialog works; toast would be tighter)
+- [ ] Drag-and-drop reorder inside a status column
+- [ ] OAuth providers (Google, GitHub)

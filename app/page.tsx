@@ -12,10 +12,12 @@ const overviewDiagram = `flowchart LR
   P --> OTP[otp]
   P --> RL[ratelimit]
   P --> WH[webhookd]
-  SL & OTP & RL & WH --> N[(Neon Postgres)]
+  P --> LAB[lab]
+  SL & OTP & RL & WH & LAB --> N[(Neon Postgres)]
   OTP --> B[Brevo email]
   WH --> X[Target URL]
   WH -.uses lib.-> RL
+  LAB -.composes.-> RL
 `;
 
 export default async function Home() {
