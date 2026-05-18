@@ -836,3 +836,66 @@ The eight risks identified during §2-§9 drafting, with
    per §7 inventory (likely `<AuthPanel>` + `/api/lab/{signup,login,
    logout,me}` so the auth loop closes end-to-end before the dashboard
    work starts).
+
+---
+
+## Amendments
+
+### 2026-05-18 — v1 shipped
+
+All §2 IN items live on production. Build sequence:
+
+| Commit | Subtree |
+|---|---|
+| `73eb8f9` | Planning artifacts (PLAN, CLAUDE.md, schema.sql, .claude/settings.json) + dep additions |
+| `fd7ebeb` | Auth subtree — argon2id, opaque sessions, AuthPanel + 4 routes |
+| `c7b8063` | Dashboard subtree — task CRUD + URL-driven filter/search/sort/paginate + optimistic UI |
+| `7b3b1ef` | Discoverability — `/projects/lab` MDX, home overview Mermaid |
+| `384f841` | Audit fixes — heading-order, hydration (React #418), CSP for vercel.live |
+
+**Quality gates met:**
+- Lighthouse Performance: 90 ✅ (bar from §1)
+- Lighthouse Accessibility: 98 → ~100 post-fix ✅ (bar from §5)
+- Manual keyboard + mobile pass: confirmed by user 2026-05-18
+- `pnpm build` Stop hook (§9.3): firing per-session
+
+**Risk register reality check** (which fired vs stayed quiet):
+- R1 scope creep: held — no new fields snuck in during the build
+- R2 visual continuity: held — sub-CLAUDE.md "no tilt, no ambient" guidance kept the dashboard surface calm without making it feel disconnected
+- R3 argon2 cold-start: real but mitigated; first prod signup paid the cost and the "Setting up secure password storage…" copy made it land cleanly
+- R4 signup enumeration: deliberately shipped, documented in `/projects/lab` MDX so a senior reviewer sees the trade-off was conscious
+- R5 demo-data accumulation: not triggered yet (user count < threshold); revisit when Neon free-tier alert fires
+- R6 argon2 binding stability: held — no deploy failures
+- R7 sub-CLAUDE.md CWD discipline: held for this build; not yet stress-tested across many sessions
+- R8 Stop hook session-close cost: accepted, fired as expected
+
+### v2 backlog
+
+Items deferred from §2 OUT plus surface that emerged during the build:
+
+**Auth completeness (from §2 OUT):**
+- [ ] Email verification on signup — composes [mailer](/projects/mailer) when its v1 deploy lands
+- [ ] Password reset flow — same composition story
+- [ ] OAuth providers (Google, GitHub) behind a uniform interface
+- [ ] WebAuthn / passkeys
+
+**Product surface (from §2 OUT):**
+- [ ] Task multi-step editing — drag-and-drop reorder, batch operations, inline rename
+- [ ] Account deletion / GDPR-style data export
+- [ ] Notifications + in-product onboarding tour
+- [ ] Real-time updates, file uploads, sharing
+
+**Ops (from §10 Risk register):**
+- [ ] Demo-data cleanup cron when R5 trigger fires (≥ 100 demo accounts OR ≥ 5,000 tasks OR Neon free-tier alert)
+- [ ] CI smoke check that imports `@node-rs/argon2` (closes R6 from "low likelihood" to "monitored")
+
+**Polish (from audit + post-ship feedback):**
+- [ ] Toast-with-undo on delete (current small dialog works; toast would be tighter — matches Linear's UX)
+- [ ] Lighthouse bundle warnings — chase the ~40 KiB of legacy + unused JS if/when Vercel cost or perf becomes a topic
+
+**Documentation:**
+- [ ] Surface /lab on the about page (currently the nav and the project MDX are the only entry points)
+- [ ] Add a screenshot / screen recording to `/projects/lab` once the dashboard has interesting content
+
+The plan is closed. Build amendments only from this point — no silent
+edits to §1–§10.
