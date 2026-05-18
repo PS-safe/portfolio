@@ -230,6 +230,11 @@ export function Dashboard({ email, initialPage }: Props) {
         }}
       />
 
+      {/* sr-only H2 bridges the heading-order gap between the page H1
+         "Try the stack" and the per-row H3s. Without this, screen-reader
+         heading navigation skips a level (Lighthouse a11y catches it).
+         Visually invisible; semantically the section label. */}
+      <h2 className="sr-only">Your tasks</h2>
       <TaskList
         items={optimisticItems}
         total={initialPage.total}
