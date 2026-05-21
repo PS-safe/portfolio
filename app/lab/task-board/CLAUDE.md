@@ -1,17 +1,18 @@
-# /lab — project context for Claude Code
+# /lab/task-board — project context for Claude Code
 
-A small full-stack demo at `/lab` inside this portfolio. Composes
-`PS-safe/auth` (auth + sessions) and `PS-safe/queryhelper` (the
-dashboard) into a one-screen product. `PS-safe/mailer` is deferred —
-v1 has no email step.
+A small full-stack demo at `/lab/task-board` inside this portfolio (one
+demo within the `/lab` portal). Composes `PS-safe/auth` (auth + sessions)
+and `PS-safe/queryhelper` (the dashboard) into a one-screen product.
+`PS-safe/mailer` is deferred — v1 has no email step.
 
-See `app/lab/PLAN.md` for the full locked plan. This file is the short
-operational rule sheet that travels with the directory.
+See `app/lab/task-board/PLAN.md` for the full locked plan. This file is
+the short operational rule sheet that travels with the directory.
 
 > **CWD note (Risk R7).** This file is loaded by Claude Code when CWD
-> is inside `app/lab/` or any descendant. Before starting /lab work,
-> `cd app/lab` so these rules actually apply. If discipline drifts
-> twice in a row, fall back to amending the portfolio's root CLAUDE.md.
+> is inside `app/lab/task-board/` or any descendant. Before starting work
+> on this demo, `cd app/lab/task-board` so these rules actually apply. If
+> discipline drifts twice in a row, fall back to amending the portfolio's
+> root CLAUDE.md.
 
 ## Non-negotiables
 
@@ -41,6 +42,8 @@ operational rule sheet that travels with the directory.
 
 ```
 app/lab/
+  page.tsx            portal index — grid of LabCard from getLabDemos()
+app/lab/task-board/
   page.tsx            Server Component — reads cookie + searchParams,
                       decides auth-panel vs dashboard
   CLAUDE.md           this file

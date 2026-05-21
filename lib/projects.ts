@@ -20,6 +20,8 @@ export type ProjectFrontmatter = {
   order?: number;
   /** Coarse shape of the artifact — drives the grouping on /projects. */
   category?: Category;
+  /** Skills this demo demonstrates — surfaced as pills on the /lab portal. */
+  proves?: string[];
 };
 
 export type Project = ProjectFrontmatter & { content: string };
@@ -56,6 +58,14 @@ export async function getProjectBySlug(slug: string): Promise<Project | null> {
 export async function getFeaturedProjects(): Promise<Project[]> {
   const all = await getAllProjects();
   return all.filter((p) => p.featured);
+}
+
+/** Projects with a live, interactive demo mounted under /lab/<slug>. Powers
+ * the /lab portal index — a project opts in simply by giving its frontmatter a
+ * liveUrl under /lab/. */
+export async function getLabDemos(): Promise<Project[]> {
+  const all = await getAllProjects();
+  return all.filter((p) => p.liveUrl?.startsWith("/lab/"));
 }
 
 /** Order categories appear in on /projects. Libraries first — they're the

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, ExternalLink } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, ExternalLink } from "lucide-react";
 import { GithubIcon } from "@/components/icons";
 import { Mdx } from "@/components/mdx";
 import { getAllProjects, getProjectBySlug } from "@/lib/projects";
@@ -80,16 +80,24 @@ export default async function ProjectPage({ params }: Props) {
                 <GithubIcon className="h-4 w-4" /> Repository
               </a>
             )}
-            {project.liveUrl && (
-              <a
-                href={project.liveUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-1.5 text-foreground transition-colors hover:text-accent"
-              >
-                <ExternalLink className="h-4 w-4" /> Live
-              </a>
-            )}
+            {project.liveUrl &&
+              (project.liveUrl.startsWith("/lab/") ? (
+                <Link
+                  href={project.liveUrl}
+                  className="inline-flex items-center gap-1.5 font-medium text-accent transition-colors hover:text-accent/80"
+                >
+                  <ArrowUpRight className="h-4 w-4" /> Try it live
+                </Link>
+              ) : (
+                <a
+                  href={project.liveUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1.5 text-foreground transition-colors hover:text-accent"
+                >
+                  <ExternalLink className="h-4 w-4" /> Live
+                </a>
+              ))}
           </div>
         )}
       </header>

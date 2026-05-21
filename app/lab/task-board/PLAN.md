@@ -899,3 +899,22 @@ Items deferred from §2 OUT plus surface that emerged during the build:
 
 The plan is closed. Build amendments only from this point — no silent
 edits to §1–§10.
+
+---
+
+## Amendment 1 — 2026-05-21: relocated under /lab portal
+
+`/lab` became an index/portal of interactive demos. This demo moved from
+`/lab` to **`/lab/task-board`**; its directory (`page.tsx`, `PLAN.md`,
+`CLAUDE.md`, `schema.sql`) moved from `app/lab/` to `app/lab/task-board/`
+so each demo stays self-contained.
+
+- Route + all internal links updated to `/lab/task-board`.
+- `content/projects/lab.mdx`: `title` -> "Task board", `liveUrl` ->
+  `/lab/task-board`, `repo` -> `.../app/lab/task-board`, added `proves:`.
+  Slug stays `lab` (URL `/projects/lab` unchanged).
+- Portal convention going forward: a demo opts into the `/lab` index by
+  living at `app/lab/<slug>/page.tsx` with a `content/projects/<slug>.mdx`
+  whose frontmatter has `liveUrl: /lab/<slug>` and a `proves:` list. The
+  index (`getLabDemos()`) picks it up automatically — no index edits.
+- No change to `app/api/lab/*`, `lib/lab/*`, auth, schema, or §1–§10 scope.
