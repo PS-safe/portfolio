@@ -1,0 +1,79 @@
+---
+title: Pathfinding visualizer
+slug: pathfinder
+summary: An interactive grid where BFS, Dijkstra, and A* search for the shortest path in real time. Built from scratch — a hand-rolled min-heap, admissible heuristics, and a compute/replay split that keeps the animation at 60fps on a 1,500-cell grid.
+year: 2026
+tech: [TypeScript, "React 19", "Next.js 16", Vitest]
+repo: https://github.com/PS-safe/portfolio/tree/main/lib/lab/pathfinder
+liveUrl: /lab/pathfinder
+proves: ["Graph search (BFS/Dijkstra/A*)", "60fps rAF animation", "Keyboard-accessible grid", "Hand-rolled min-heap"]
+status: active
+destination: [showcase, personal]
+featured: false
+category: project
+order: 13
+---
+
+Draw walls and weights on a grid, pick an algorithm, and watch it search. A\*
+beelines toward the goal; breadth-first floods outward uniformly; Dijkstra
+respects the weights that A\* and BFS treat differently. The point of the demo
+is to make those differences *visible* — and to do it without a graph library
+doing the hard part.
+
+## Compute, then replay
+
+The search and the animation are completely separate. Each algorithm is a pure
+function — it takes a grid and returns a `Trace`: the order cells were visited,
+the final path, the cost, and how long the search took in microseconds. No DOM,
+no timers, no randomness.
+
+A separate player replays that trace over time with `requestAnimationFrame`.
+Because the visual state at any point is just a function of how many cells have
+been revealed, the scrubber can seek backward by repainting — never by
+re-running the search. That split is what makes the whole thing both smooth and
+testable.
+
+## Why three algorithms
+
+They form a progression:
+
+- **Breadth-first** — unweighted; optimal in number of steps. The baseline.
+- **Dijkstra** — adds edge weights; optimal in cost. Paint a heavy patch and it
+  detours around it while BFS plows straight through.
+- **A\*** — Dijkstra guided by a heuristic (Manhattan for 4-direction movement,
+  octile for 8). Same optimal cost, far fewer cells expanded.
+
+The heuristics are *admissible* — they never overestimate the remaining
+distance — which is exactly the property that keeps A\* optimal. A test pins it
+down: on randomly generated mazes, A\*'s path cost always equals Dijkstra's.
+Greedy best-first and depth-first are included too, as the cautionary
+counter-examples that wander or settle for a worse path.
+
+Dijkstra and A\* are backed by a binary min-heap written by hand — the data
+structure that turns the search from O(V²) into something near-linear.
+
+## Keeping 60fps
+
+A 30×50 grid is 1,500 cells. Re-rendering that through React on every animation
+frame would drop frames immediately, so it doesn't: the player paints cells by
+mutating the DOM directly through refs, while React owns only the grid's
+structure. The grid component is memoised, so the per-frame scrubber updates in
+the parent never reconcile the cells. Drawing walls works the same way — a drag
+mutates the DOM as you move and commits to React state once, on pointer-up.
+
+## Accessible, not just clickable
+
+The grid is fully keyboard-operable: a roving tabindex gives it a single tab
+stop, arrow keys move the cursor, and keys place walls, weights, start, and end.
+Start and end carry glyphs (not just colour), there's an always-visible legend,
+and `prefers-reduced-motion` skips the animated sweep entirely — it jumps
+straight to the solved state.
+
+## Tested where it counts
+
+The pure logic core is unit-tested: the min-heap's ordering invariant, each
+algorithm on hand-built grids (straight line, wall detour, no-path, weighted
+detour), the optimality property against Dijkstra, the heuristics, the maze
+generator's solvability and reproducibility, and the player's seek/step
+derivation. The UI is left to manual testing — the value is in proving the
+algorithms are correct.

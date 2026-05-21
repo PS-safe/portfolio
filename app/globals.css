@@ -286,3 +286,95 @@ body {
   .project-card:hover { transform: none; }
   .hero-spotlight .hero-text { transition: none; }
 }
+
+/* --- /lab/pathfinder grid ------------------------------------------------- */
+.pf-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  width: max-content;
+  touch-action: none; /* pointer drawing owns the gestures */
+  user-select: none;
+}
+.pf-row {
+  display: flex;
+  gap: 1px;
+}
+.pf-cell {
+  position: relative;
+  box-sizing: border-box;
+  width: var(--pf-cell, 26px);
+  height: var(--pf-cell, 26px);
+  background: var(--card);
+  border: 1px solid var(--border);
+  outline: none;
+  transition: background-color 110ms ease;
+}
+.pf-cell:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--accent);
+  z-index: 2;
+}
+
+/* Transient replay states — set via refs by the player (M3), never by React. */
+.pf-cell[data-state="open"] {
+  background: color-mix(in srgb, var(--accent) 16%, var(--card));
+}
+.pf-cell[data-state="closed"] {
+  background: color-mix(in srgb, var(--accent) 40%, var(--card));
+}
+.pf-cell[data-state="path"] {
+  background: #f59e0b;
+  border-color: #f59e0b;
+}
+
+/* Structural kinds declared AFTER state so walls/start/end keep their fill
+   even once the search has "visited" them. Weight only adds a glyph, so a
+   weighted cell still shows the visited fill underneath. */
+.pf-cell[data-kind="wall"] {
+  background: var(--foreground);
+  border-color: var(--foreground);
+}
+.pf-cell[data-kind="start"],
+.pf-cell[data-kind="end"] {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+/* Glyphs keep meaning legible without relying on colour alone. */
+.pf-cell[data-kind="start"]::after,
+.pf-cell[data-kind="end"]::after,
+.pf-cell[data-kind="weight"]::after {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  line-height: 1;
+  font-size: calc(var(--pf-cell, 26px) * 0.6);
+}
+.pf-cell[data-kind="start"]::after {
+  content: "▸";
+  color: var(--accent-foreground);
+}
+.pf-cell[data-kind="end"]::after {
+  content: "◉";
+  color: var(--accent-foreground);
+}
+.pf-cell[data-kind="weight"]::after {
+  content: "•";
+  color: var(--muted-foreground);
+  font-size: calc(var(--pf-cell, 26px) * 0.95);
+}
+
+.pf-legend-swatch {
+  width: 18px;
+  height: 18px;
+}
+.pf-legend-swatch::after {
+  font-size: 12px !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pf-cell {
+    transition: none;
+  }
+}
