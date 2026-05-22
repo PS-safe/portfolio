@@ -27,6 +27,8 @@ interface Props {
   /** Set true by the parent when a resize happens while the grid had focus, so
    * the rebuilt grid can restore it instead of dropping focus to <body>. */
   restoreFocusRef?: { current: boolean };
+  /** id of the element describing how to operate the grid (keyboard help). */
+  describedById?: string;
 }
 
 type Stroke = {
@@ -38,7 +40,7 @@ type Stroke = {
   last: number;
 };
 
-function PathGridImpl({ grid, brush, disabled, onChange, cellRefs, restoreFocusRef }: Props) {
+function PathGridImpl({ grid, brush, disabled, onChange, cellRefs, restoreFocusRef, describedById }: Props) {
   const { rows, cols } = grid;
   const [active, setActive] = useState(grid.start);
   const activeRef = useRef(active);
@@ -237,6 +239,7 @@ function PathGridImpl({ grid, brush, disabled, onChange, cellRefs, restoreFocusR
     <div
       role="grid"
       aria-label="Pathfinding grid"
+      aria-describedby={describedById}
       aria-rowcount={rows}
       aria-colcount={cols}
       className="pf-grid"

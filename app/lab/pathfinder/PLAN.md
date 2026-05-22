@@ -347,3 +347,23 @@ commit:
 fill contrast (<3:1, colour-only); weight glyph on amber path in dark; Play
 after reduced-motion re-animates; Step enabled-but-noop at end; `aria-describedby`
 on the grid; `SPEEDS` duplication; `getLabDemos` string-coupling.
+
+### Amendment 3 — 2026-05-21: Lighthouse verified + minors cleared
+
+Lighthouse on the deployed `/lab/pathfinder` (mobile): **Performance 100,
+Accessibility 100, Best Practices 100, SEO 100** — §1's ≥90 bar met with room
+(FCP 0.9s, LCP 1.2s, TBT 50ms, CLS 0). Automated a11y only covers a fraction,
+so the dynamic-state items below were fixed by hand, not because LH flagged them.
+
+Cleared the deferred minors:
+- `performance.now()` feature-detected; the compute stat now reads in ms (no µs oversell).
+- frontier/visited fill contrast bumped (open 16→26%, closed 40→55% accent mix).
+- weight glyph given a card-coloured `text-shadow` halo — legible over the amber path, incl. dark.
+- Play under reduced-motion now seeks to the end instead of animating (run *and* resume).
+- Step disabled once the replay reaches the end.
+- `aria-describedby` links the grid to its keyboard-help text.
+- `SPEEDS` co-located in `toolbar.tsx` (one source: label + cellsPerFrame).
+
+Consciously NOT changed: `getLabDemos`' liveUrl-prefix convention — a documented,
+low-risk nit; an explicit frontmatter flag wasn't worth the churn across both MDX
+files + the helper.

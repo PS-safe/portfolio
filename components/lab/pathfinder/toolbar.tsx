@@ -12,10 +12,11 @@ const BRUSHES: ReadonlyArray<{ id: Brush; label: string }> = [
 ];
 
 const ALGO_ORDER: ReadonlyArray<AlgorithmName> = ["astar", "dijkstra", "bfs", "greedy", "dfs"];
-const SPEEDS: ReadonlyArray<{ id: Speed; label: string }> = [
-  { id: "slow", label: "Slow" },
-  { id: "normal", label: "Normal" },
-  { id: "fast", label: "Fast" },
+// Single source for the speed control: label (UI) + cellsPerFrame (player).
+export const SPEEDS: ReadonlyArray<{ id: Speed; label: string; cellsPerFrame: number }> = [
+  { id: "slow", label: "Slow", cellsPerFrame: 1 },
+  { id: "normal", label: "Normal", cellsPerFrame: 5 },
+  { id: "fast", label: "Fast", cellsPerFrame: 14 },
 ];
 
 const selectClass =

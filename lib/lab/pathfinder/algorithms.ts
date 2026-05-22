@@ -3,7 +3,11 @@ import { heuristicFor } from "./heuristics";
 import { MinHeap } from "./heap";
 import type { Algorithm, Cell, Grid, Trace } from "./types";
 
-const microsSince = (start: number): number => Math.round((performance.now() - start) * 1000);
+// performance.now() where available (high-res), else Date.now(). Browsers clamp
+// the resolution, so treat the figure as coarse — useful for comparing
+// algorithms, not as an exact timing.
+const now: () => number = typeof performance !== "undefined" ? () => performance.now() : () => Date.now();
+const microsSince = (start: number): number => Math.round((now() - start) * 1000);
 
 function build(g: Grid, order: Cell[], parent: Map<Cell, Cell>, found: boolean, t0: number): Trace {
   const path = found ? reconstruct(parent, g.start, g.end) : [];
@@ -20,7 +24,7 @@ function build(g: Grid, order: Cell[], parent: Map<Cell, Cell>, found: boolean, 
 /** Breadth-first search. Unweighted: optimal in number of steps, blind to
  * cell weights — the baseline the others are measured against. */
 export const bfs: Algorithm = (g) => {
-  const t0 = performance.now();
+  const t0 = now();
   const order: Cell[] = [];
   const parent = new Map<Cell, Cell>();
   const seen = new Set<Cell>([g.start]);
@@ -48,7 +52,7 @@ export const bfs: Algorithm = (g) => {
  * badly an uninformed strategy can wander. `seen` is marked at discovery so
  * the parent tree stays a valid spanning tree. */
 export const dfs: Algorithm = (g) => {
-  const t0 = performance.now();
+  const t0 = now();
   const order: Cell[] = [];
   const parent = new Map<Cell, Cell>();
   const seen = new Set<Cell>([g.start]);
@@ -74,7 +78,7 @@ export const dfs: Algorithm = (g) => {
 /** Dijkstra. Weighted, optimal. Lazy deletion (stale heap entries skipped on
  * pop) avoids needing a decrease-key. */
 export const dijkstra: Algorithm = (g) => {
-  const t0 = performance.now();
+  const t0 = now();
   const order: Cell[] = [];
   const parent = new Map<Cell, Cell>();
   const dist = new Map<Cell, number>([[g.start, 0]]);
@@ -107,7 +111,7 @@ export const dijkstra: Algorithm = (g) => {
 /** A*. Dijkstra guided by an admissible heuristic — same optimal cost, far
  * fewer cells expanded. The visible "beeline" toward the goal. */
 export const astar: Algorithm = (g) => {
-  const t0 = performance.now();
+  const t0 = now();
   const h = heuristicFor(g);
   const order: Cell[] = [];
   const parent = new Map<Cell, Cell>();
@@ -142,7 +146,7 @@ export const astar: Algorithm = (g) => {
 /** Greedy best-first. Follows the heuristic alone, ignoring cost so far —
  * fast and direct, but not optimal. The contrast that explains why A* adds g. */
 export const greedy: Algorithm = (g) => {
-  const t0 = performance.now();
+  const t0 = now();
   const h = heuristicFor(g);
   const order: Cell[] = [];
   const parent = new Map<Cell, Cell>();

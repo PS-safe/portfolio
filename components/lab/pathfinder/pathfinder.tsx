@@ -12,16 +12,20 @@ import {
   type Trace,
 } from "@/lib/lab/pathfinder";
 import { PathGrid } from "./grid";
-import { Toolbar, type Brush, type Speed } from "./toolbar";
+import { Toolbar, SPEEDS, type Brush, type Speed } from "./toolbar";
 import { Transport } from "./transport";
 import { StatsPanel } from "./stats-panel";
 import { Legend } from "./legend";
 
 const ROWS = 21;
 const CELL = 27; // 26px cell + 1px gap; keep in sync with .pf-cell / .pf-grid
-const SPEEDS: Record<Speed, number> = { slow: 1, normal: 5, fast: 14 };
 
 const evenDown = (n: number) => n - (n % 2);
+
+const prefersReducedMotion = () =>
+  typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+const cellsPerFrame = (id: Speed) => SPEEDS.find((s) => s.id === id)?.cellsPerFrame ?? 5;
 
 // Start/end default to even coordinates so a generated maze (whose lattice
 // nodes sit on even/even) is always solvable between them.
@@ -115,7 +119,7 @@ export function Pathfinder() {
     const player = createPlayer({
       trace: result,
       paint,
-      getSpeed: () => SPEEDS[speedRef.current],
+      getSpeed: () => cellsPerFrame(speedRef.current),
       onFrame: setProgress,
       onDone: () => {
         setPlaying(false);
@@ -125,9 +129,7 @@ export function Pathfinder() {
     playerRef.current = player;
     // Honour reduced-motion: skip the animated sweep, show the solved grid and
     // announce the result immediately.
-    const reduceMotion =
-      typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (reduceMotion) {
+    if (prefersReducedMotion()) {
       player.seek(result.order.length);
       setAnnounce(message);
     } else {
@@ -142,11 +144,14 @@ export function Pathfinder() {
     if (playing) {
       p.pause();
       setPlaying(false);
+    } else if (prefersReducedMotion() && trace) {
+      // Don't animate on resume either — jump to the solved state.
+      p.seek(trace.order.length);
     } else {
       p.play();
       setPlaying(true);
     }
-  }, [playing]);
+  }, [playing, trace]);
 
   const step = useCallback(() => {
     playerRef.current?.step();
@@ -211,6 +216,7 @@ export function Pathfinder() {
             onChange={handleEdit}
             cellRefs={cellRefs}
             restoreFocusRef={restoreFocusRef}
+            describedById="pf-instructions"
           />
         </div>
         <div className="flex shrink-0 gap-8 sm:gap-12 lg:w-44 lg:flex-col lg:gap-6">
@@ -219,7 +225,7 @@ export function Pathfinder() {
         </div>
       </div>
 
-      <p className="mt-4 max-w-2xl text-xs text-muted-foreground">
+      <p id="pf-instructions" className="mt-4 max-w-2xl text-xs text-muted-foreground">
         Click or drag to draw walls and weights; drag the <span className="text-foreground">▸</span> start and{" "}
         <span className="text-foreground">◉</span> end to move them. Keyboard: focus the grid, arrow keys to move,{" "}
         <kbd>Enter</kbd> toggles a wall, <kbd>S</kbd>/<kbd>E</kbd> place start/end, <kbd>W</kbd> a weight. Pick an

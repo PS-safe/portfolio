@@ -5,7 +5,9 @@ function formatCost(cost: number): string {
 }
 
 function formatCompute(micros: number): string {
-  return micros < 1000 ? `${micros} µs` : `${(micros / 1000).toFixed(1)} ms`;
+  // Shown in ms: browser clocks are coarse, so µs precision would oversell it.
+  const ms = micros / 1000;
+  return ms < 0.01 ? "<0.01 ms" : `${ms.toFixed(2)} ms`;
 }
 
 export function StatsPanel({ trace, algoLabel }: { trace: Trace | null; algoLabel: string }) {

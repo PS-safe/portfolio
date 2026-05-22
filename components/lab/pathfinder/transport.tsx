@@ -24,7 +24,7 @@ export function Transport({ playing, progress, total, hasTrace, onToggle, onStep
       <button
         type="button"
         onClick={onStep}
-        disabled={!hasTrace || playing}
+        disabled={!hasTrace || playing || progress >= total}
         className="rounded-md border border-border px-3 py-1 text-xs font-medium text-foreground transition-colors hover:border-accent disabled:opacity-40"
       >
         Step
