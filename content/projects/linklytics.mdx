@@ -1,0 +1,113 @@
+---
+title: Linklytics
+slug: linklytics
+summary: Short-link service with per-user auth and a dashboard — Go API on Render, Next.js on Vercel, Neon Postgres. The first product I built, deployed, and operate end-to-end.
+year: 2026
+tech: [Go, TypeScript, "Next.js 16", "React 19", "Tailwind v4", Postgres, Neon, Render, Vercel]
+repo: https://github.com/PS-safe/linklytics
+liveUrl: https://linklytics-nine.vercel.app
+status: active
+destination: [showcase, personal]
+featured: true
+category: project
+order: 14
+proves:
+  [
+    "Full-stack production deploy (Render + Vercel + Neon)",
+    "Session auth with opaque cookies",
+    "Same-origin proxy chosen over CORS",
+    "pgx + auto-migrate on boot",
+    "Off-hot-path click recording with shutdown drain",
+  ]
+---
+
+Sign up, shorten a link, share it. Per-user dashboard, click count per link. The
+short URL is served by a Go service on Render, the dashboard is a Next.js app on
+Vercel, and both talk to a single Neon Postgres. This is the first project I've
+actually *deployed and operated* — not just built locally and screenshotted.
+
+> First load may take ~30s. Render's free tier sleeps idle services and wakes on
+> first hit; warm redirects are sub-100ms.
+
+## How it fits together
+
+<Mermaid
+  caption="Linklytics — split front and back, single DB"
+  chart={`flowchart LR
+    B[Browser] -->|"/dashboard, /api/*"| V[Vercel: Next.js 16]
+    V -->|"rewrite /api/* → Render"| A[Render: Go service]
+    A -->|"pgx pool"| DB[(Neon Postgres)]
+    B2[Click recipient] -->|"/r/slug"| A
+    A -->|"302 + record click async"| T[Target URL]
+`} />
+
+## Why same-origin proxy, not CORS
+
+The dashboard lives on `vercel.app`; the API on `onrender.com`. Different
+registrable domains — so a cookie set by the API and used by the dashboard is
+**third-party** from the browser's perspective, and modern browsers are
+phasing third-party cookies out entirely. `SameSite=None; Secure` would
+technically work today and silently stop working tomorrow.
+
+Instead, Next.js has a single rewrite — `/api/:path*` → the Render service.
+The browser only ever talks to its own origin (Vercel). The session cookie is
+set on `vercel.app` and stays first-party. CORS isn't in the picture at all.
+The cost is one extra hop at the edge; the benefit is durability against
+browser policy changes I don't control.
+
+## Reusing my own libraries as real module dependencies
+
+The Go service imports two of my libraries via `go get` — not as copy-pasted
+snippets:
+
+- **`PS-safe/shortlink/slug`** generates collision-resistant slugs from
+  `crypto/rand` with rejection sampling.
+- **`PS-safe/auth`** provides argon2id hashing, opaque session tokens, the
+  pgx-backed `Store`, and the `RequireSession` middleware.
+
+That's the canonical use of those libraries — not the TypeScript runtime
+ports they have on this site. Importing them here proved they're usable as
+published modules, not just clean-room artifacts.
+
+## Click recording off the hot path
+
+A redirect is supposed to be fast. The handler resolves the slug, sends the
+302, and *then* records the click on a goroutine with a 5s timeout on a
+context detached from the request:
+
+```go
+http.Redirect(w, r, l.Target, http.StatusFound)
+a.recordClick(link.Click{LinkID: l.ID, TS: time.Now().UTC(), Referrer: r.Referer()})
+```
+
+The goroutine is tracked by a `sync.WaitGroup` on the API struct so the
+process actually *drains* in-flight click writes on `SIGTERM` instead of
+losing them when Render restarts the service. The senior-Go review caught
+that the original spawn-and-forget would leak clicks on every redeploy.
+
+## Auto-migrate on boot
+
+There's no separate migration step in the deploy pipeline. The schema —
+auth tables plus `links` and `click_events` — lives in
+`internal/migrate/schema.sql`, embedded into the binary with `//go:embed`,
+applied on startup with `pool.Exec`. Every statement is idempotent
+(`CREATE TABLE IF NOT EXISTS`, `CREATE INDEX IF NOT EXISTS`), so the boot
+sequence is safe to repeat: first deploy applies the schema, every subsequent
+boot is a no-op.
+
+The trade-off: a versioned migration tool (goose, tern) is better for
+production with multiple in-flight schema versions. For one service on one
+database where the schema only grows, embedded + idempotent is the smallest
+correct thing.
+
+## What it doesn't have yet
+
+- **Click analytics.** Each redirect already records a row in `click_events`
+  with timestamp and referrer. The dashboard doesn't visualise that data yet —
+  milestone 3 turns those rows into charts (time-series, top referrers, device
+  and country splits) and folds in a server-side auth gate so the dashboard
+  stops flashing "Loading…" before showing the user's data.
+- **A custom domain.** Currently served from `linklytics-nine.vercel.app`; a
+  short branded domain comes next.
+- **A keep-warm ping** to hide Render's cold start. Deliberately omitted — see
+  the disclaimer at the top.
