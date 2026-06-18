@@ -1,0 +1,86 @@
+---
+title: Claude Config Viewer
+slug: claude-md-viewer
+summary: "A zero-dependency local web viewer for your Claude Code config — CLAUDE.md rules, skills, agents, and memory, all browseable, searchable, and grouped. Bring-your-own-config: the snapshot it reads never leaves your machine."
+year: 2026
+tech: [JavaScript, "Node.js", HTML, CSS, "Zero-dependency"]
+repo: https://github.com/PS-safe/claude-md-viewer
+status: stable
+destination: [showcase, personal]
+category: project
+order: 15
+proves:
+  [
+    "Zero-dependency static tooling — no framework, no build step",
+    "Node filesystem scan + hand-rolled frontmatter parsing",
+    "Client-side routing, search, and Markdown rendering in vanilla JS",
+    "Privacy by design: the generated snapshot stays local and gitignored",
+  ]
+---
+
+As my Claude Code setup grew — a global rules file, a dozen project `CLAUDE.md`s,
+26 skills, 4 agents, 42 memory entries — it stopped fitting in my head. The
+files are scattered across `~/.claude/` and a handful of repos, and reading them
+meant `cat`-ing one at a time. This is a friendly web view over all of it:
+grouped, searchable, with the cross-links between memory entries made clickable.
+
+It runs entirely on your own machine against your own config. There's no hosted
+demo on purpose — see *Privacy by design* below.
+
+## The static-snapshot model
+
+The whole design is one split: a Node scanner and a pure-static frontend, with a
+generated JSON file as the only thing between them.
+
+<Mermaid
+  caption="Scan once, render statically — no live filesystem access from the browser"
+  chart={`flowchart LR
+    C["~/.claude/ + project CLAUDE.md files"] -->|"node build.mjs"| D[(data.json)]
+    D -->|"fetch() on boot"| A["app.js — routing, render, search"]
+    A --> UI[Browser UI]
+`} />
+
+`build.mjs` walks `~/.claude/` plus a hard-coded list of project paths, parses
+each file's frontmatter, and writes a single `data.json`. The frontend —
+`index.html` + `styles.css` + `app.js` — does one `fetch('data.json')` on boot
+and renders everything client-side. To reflect changes you re-run the scanner
+and reload.
+
+The alternative was a long-running local server with live filesystem access. I
+rejected it: a static snapshot has no process to supervise, no port to manage,
+and no attack surface. The cost is a manual refresh step, which for a tool you
+glance at a few times a day is the right trade.
+
+## Privacy by design
+
+The generated `data.json` embeds your global rules and every memory entry
+*verbatim*. That's the entire point of the viewer — and exactly why it must
+never be published. So the snapshot is `.gitignore`d, and the repo ships only
+the tool. Anyone who clones it runs `node build.mjs` against their own
+`~/.claude/` to generate a snapshot that stays on their machine.
+
+This is "bring your own config" by construction: the shareable artifact (the
+viewer) and the private artifact (the data) are split at the file boundary, so
+there's no path where cloning or pushing the repo leaks anyone's setup.
+
+## Zero dependencies
+
+No `package.json`, no bundler, no framework. `build.mjs` is ~200 lines of Node
+using only `fs/promises` and `path`. The frontend is vanilla JS — one render
+function per section, with `{section, id}` as the only state and a single
+`navigate()` mutation point. The two libraries it does use — `marked` for
+Markdown and `highlight.js` for code — load from a CDN, so there's nothing to
+install and nothing to audit.
+
+Frontmatter parsing is a hand-rolled YAML-ish reader rather than a real YAML
+library: it handles top-level `key: value` and one level of nesting, which is
+all the skill and memory files actually use. The discipline is deliberate — the
+moment the frontmatter needs arrays or multiline strings, the right move is to
+pull in a real parser, not to keep growing the hand-rolled one.
+
+## Memory wikilinks
+
+Memory entries reference each other with `[[slug]]` links. The renderer rewrites
+those into in-app anchors, so the graph of related memories is navigable by
+clicking — the same `[[…]]` convention I write in the files becomes the
+navigation between them.
